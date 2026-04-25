@@ -13,8 +13,8 @@ import os
 JELLYFIN_URL   = os.getenv("JELLYFIN_URL", "")
 JELLYFIN_TOKEN = os.getenv("JELLYFIN_TOKEN", "")
 TMDB_API_KEY   = os.getenv("TMDB_API_KEY", "")
-OLLAMA_URL     = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL", "qwen3:14b")
+OLLAMA_URL     = os.getenv("OLLAMA_URL", "")
+OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL", "llama3.2")
 JELLYSEERR_URL = os.getenv("JELLYSEERR_URL", "")
 
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "newsletters"
@@ -231,8 +231,4 @@ def _mock_media():
     ]
 
 def _mock_watchtime():
-    return [
-        {"name": "Constantin", "hours": 8.3},
-        {"name": "Lena",       "hours": 5.8},
-        {"name": "Emma",       "hours": 2.2},
-    ]
+    return []

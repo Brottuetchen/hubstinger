@@ -34,23 +34,24 @@ BASE_DIR   = Path(__file__).parent
 PUBLIC_DIR = BASE_DIR.parent / "public"
 
 # JWT
-SECRET_KEY     = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_use_openssl_rand_hex_32")
-ALGORITHM      = "HS256"
+_SECRET_KEY_DEFAULT = "CHANGE_ME_IN_PRODUCTION_use_openssl_rand_hex_32"
+SECRET_KEY          = os.getenv("SECRET_KEY", _SECRET_KEY_DEFAULT)
+ALGORITHM           = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 # VAPID (Web Push)
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
-VAPID_EMAIL       = os.getenv("VAPID_EMAIL", "mailto:admin@t-acc.com")
+VAPID_EMAIL       = os.getenv("VAPID_EMAIL", "")
 
 # External services
-JELLYFIN_URL    = os.getenv("JELLYFIN_URL", "http://192.168.188.x:8096")
+JELLYFIN_URL    = os.getenv("JELLYFIN_URL", "")
 JELLYFIN_TOKEN  = os.getenv("JELLYFIN_TOKEN", "")
-JELLYSEERR_URL  = os.getenv("JELLYSEERR_URL", "http://192.168.188.x:5055")
+JELLYSEERR_URL  = os.getenv("JELLYSEERR_URL", "")
 JELLYSEERR_KEY  = os.getenv("JELLYSEERR_API_KEY", "")
 TMDB_API_KEY    = os.getenv("TMDB_API_KEY", "")
-OLLAMA_URL      = os.getenv("OLLAMA_URL", "http://192.168.188.110:11434")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3:14b")
+OLLAMA_URL      = os.getenv("OLLAMA_URL", "")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")
 UPTIME_KUMA_URL = os.getenv("UPTIME_KUMA_URL", "")
 
 # Load VAPID from file if not in env
@@ -148,9 +149,15 @@ class UserCreate(BaseModel):
 async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("Family Hub API starting...")
-    logger.info(f"VAPID configured: {bool(VAPID_PUBLIC_KEY)}")
-    logger.info(f"Jellyfin: {JELLYFIN_URL}")
-    logger.info(f"TMDB: {'configured' if TMDB_API_KEY else 'NOT configured'}")
+    if SECRET_KEY == _SECRET_KEY_DEFAULT:
+        logger.warning("⚠️  SECRET_KEY is not set! Generate one: openssl rand -hex 32")
+    if not VAPID_EMAIL:
+        logger.warning("⚠️  VAPID_EMAIL not set – push notifications will not work")
+    logger.info(f"Jellyfin:  {'✓ ' + JELLYFIN_URL if JELLYFIN_URL else '✗ not configured'}")
+    logger.info(f"Jellyseerr:{'✓ ' + JELLYSEERR_URL if JELLYSEERR_URL else '✗ not configured'}")
+    logger.info(f"TMDB:      {'✓ configured' if TMDB_API_KEY else '✗ not configured'}")
+    logger.info(f"Ollama:    {'✓ ' + OLLAMA_URL if OLLAMA_URL else '✗ not configured'}")
+    logger.info(f"VAPID:     {'✓ configured' if VAPID_PUBLIC_KEY else '✗ not configured'}")
     logger.info("=" * 50)
     yield
     logger.info("Family Hub API shutting down...")
@@ -245,11 +252,7 @@ async def send_notification(payload: PushPayload, db: Session = Depends(get_db))
 @app.get("/api/jellyfin/sessions")
 async def jellyfin_sessions():
     if not JELLYFIN_TOKEN:
-        return {"sessions": [], "mock": True,
-                "data": [
-                    {"title": "Dune: Part Two", "user": "Lena", "progress": 62, "type": "Movie"},
-                    {"title": "Severance S02",  "user": "Constantin", "progress": 34, "type": "Episode"},
-                ]}
+        return {"sessions": [], "mock": True, "hint": "Set JELLYFIN_TOKEN in .env"}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.get(f"{JELLYFIN_URL}/Sessions",
@@ -272,11 +275,7 @@ async def jellyfin_sessions():
 @app.get("/api/jellyfin/recently-added")
 async def recently_added(days: int = 7, limit: int = 10):
     if not JELLYFIN_TOKEN:
-        return {"items": [
-            {"title": "A Complete Unknown", "type": "Movie",   "added": "heute"},
-            {"title": "Adolescence",        "type": "Episode", "added": "gestern"},
-            {"title": "Black Bag",          "type": "Movie",   "added": "Mo"},
-        ], "mock": True}
+        return {"items": [], "mock": True, "hint": "Set JELLYFIN_TOKEN in .env"}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             since = (datetime.utcnow() - timedelta(days=days)).isoformat()

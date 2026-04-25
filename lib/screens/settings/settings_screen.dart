@@ -141,7 +141,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
-              hintText: 'https://hub.t-acc.com',
+              hintText: 'https://your-server.com',
               hintStyle: TextStyle(color: Colors.white20, fontSize: 12),
             ),
             onSubmitted: (url) => AuthService.instance.saveBaseUrl(url),

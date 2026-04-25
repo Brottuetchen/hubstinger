@@ -204,6 +204,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildSidebarHeader() {
+    final user     = ref.watch(authProvider).user;
+    final name     = user?['full_name'] as String? ?? user?['username'] as String? ?? '–';
+    final isAdmin  = user?['is_admin'] as bool? ?? false;
+    final avatar   = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -216,16 +220,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 colors: [AppColors.violet, AppColors.cyan],
               ),
             ),
-            child: const Center(
-              child: Text('C', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            child: Center(
+              child: Text(avatar, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             ),
           ),
           const SizedBox(width: 12),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Constantin', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              Text('Admin', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              Text(isAdmin ? 'Admin' : 'User', style: const TextStyle(color: Colors.white38, fontSize: 12)),
             ],
           ),
         ],

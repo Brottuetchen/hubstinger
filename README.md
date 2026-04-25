@@ -1,4 +1,4 @@
-# Family Hub 🎬
+# Family Hub
 
 Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
@@ -9,13 +9,13 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 ## Features
 
 - 🪟 **Liquid Glass UI** – visionOS-inspired, fully custom
-- 🧩 **Widget Grid** – iOS-style customizable home screen
+- 🧩 **Widget Grid** – iOS-style customizable home screen, persisted locally
 - 📺 **Now Streaming** – live Jellyfin sessions
 - 📬 **Newsletter** – auto-generated weekly via n8n + TMDB + Ollama
-- 📊 **Watchtime** – family leaderboard per week
-- 🔔 **Push Notifications** – via Uptime Kuma + n8n webhooks
-- 📱 **iPad support** – sidebar layout auto-switches at 600px
-- 🔌 **Plugin system** – Jellyfin, Jellyseerr, TMDB, n8n, Uptime Kuma
+- 📊 **Watchtime** – per-user leaderboard from Jellyfin
+- 🔔 **Push Notifications** – Web Push via VAPID (Uptime Kuma / n8n)
+- 📱 **iPad support** – sidebar layout at ≥600px
+- 🔐 **Auth** – JWT login, secure token storage
 
 ---
 
@@ -23,74 +23,117 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
 | Layer | Tech |
 |-------|------|
-| App | Flutter 3.x |
-| Backend | FastAPI (Python) |
+| App | Flutter 3.x (Dart) |
+| State | Riverpod |
+| Backend | FastAPI (Python 3.11+) |
+| DB | SQLite (via SQLAlchemy) |
 | Automation | n8n |
 | Media | Jellyfin + Jellyseerr |
 | Metadata | TMDB API |
-| AI Summaries | Ollama (Qwen3:14b) |
+| AI Summaries | Ollama |
 | Monitoring | Uptime Kuma |
 | Push | Web Push / VAPID |
 
 ---
 
-## Quick Start
+## Setup
 
-### 1. Prerequisites
+### 1. Backend
 
 ```bash
-# Install Flutter
-winget install Flutter.Flutter   # Windows
-brew install flutter             # macOS
+cd backend
 
-# Verify
-flutter doctor
+# Create virtual environment
+python3 -m venv venv && source venv/bin/activate  # Linux/Mac
+# OR: python -m venv venv && venv\Scripts\activate   # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure
+cp .env.example .env
+nano .env          # Fill in all required values (see comments in .env.example)
+
+# Generate SECRET_KEY
+openssl rand -hex 32   # Paste output into .env as SECRET_KEY
+
+# Create admin user (interactive)
+python create_admin.py
+
+# Start server
+python main.py         # Runs on port 8080 by default
 ```
 
-### 2. Clone & run
+### 2. Flutter App
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/family-hub.git
-cd family-hub
+# Install Flutter: https://flutter.dev/docs/get-started/install
 flutter pub get
-flutter run
+flutter run            # needs connected device or emulator
 ```
 
-### 3. Configure server
+On first launch, the app shows a **Server URL** field — enter the URL of your backend (e.g. `http://192.168.1.10:8080` or `https://your-domain.com`).
 
-In Settings → Server URL, enter your backend URL:
+### 3. Required services
+
+| Service | Purpose | Required |
+|---------|---------|----------|
+| FastAPI backend | API, auth, push | ✅ |
+| Jellyfin | Media server | ✅ for streaming/recently widgets |
+| TMDB API key | Movie metadata & posters | ✅ for newsletter |
+| Ollama | German AI summaries | optional |
+| Jellyseerr | Media requests | optional |
+| Uptime Kuma | Service monitoring | optional |
+| n8n | Weekly newsletter automation | optional |
+
+### 4. VAPID Push Notifications
+
+```bash
+cd backend
+
+# Generate VAPID keys (one time)
+python -c "
+from pywebpush import Vapid
+import json, pathlib
+v = Vapid()
+v.generate_keys()
+data = {'private_key': v.private_key.decode(), 'public_key': v.public_key.decode()}
+pathlib.Path('vapid_keys.json').write_text(json.dumps(data, indent=2))
+print('Saved to vapid_keys.json')
+"
 ```
-https://hub.t-acc.com
-```
 
-### 4. TMDB API Key
+Or set `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` directly in `.env`.
 
-1. Register at [themoviedb.org](https://www.themoviedb.org/)
-2. API → Settings → API Key (free)
-3. Enter in Settings → TMDB API
+### 5. n8n Newsletter Workflow
+
+1. In n8n: create a new workflow
+2. Trigger: **Cron** → Friday 17:00 (`0 17 * * 5`)
+3. Node: **HTTP Request** → `POST https://your-backend.com/api/newsletter/generate`
+4. Activate workflow
 
 ---
 
 ## Building
 
-### Android (Windows/Linux/Mac)
+### Android
 
 ```bash
 flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-### iOS (Mac only or GitHub Actions)
+### iOS (requires macOS + Xcode)
 
 ```bash
 flutter build ipa --release
 ```
 
-### GitHub Actions (recommended)
+### GitHub Actions (CI/CD)
 
 Push to `main` → automatic builds for both platforms.
 
-For TestFlight, add these secrets to your GitHub repo:
+For TestFlight / App Store, add these secrets to your GitHub repo:
 - `IOS_CERTIFICATE_BASE64`
 - `IOS_CERTIFICATE_PASSWORD`
 - `IOS_PROVISIONING_PROFILE_BASE64`
@@ -101,21 +144,9 @@ For TestFlight, add these secrets to your GitHub repo:
 
 ---
 
-## Backend (FastAPI)
-
-```bash
-cd backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-python create_admin.py
-python main.py  # runs on :8080
-```
-
----
-
 ## Widget System
 
-Each widget is a self-contained Flutter widget registered in `widget_defs`:
+Each widget is a self-contained `ConsumerWidget`. Layout persists via SharedPreferences.
 
 ```dart
 // Adding a custom widget:
@@ -128,31 +159,26 @@ Each widget is a self-contained Flutter widget registered in `widget_defs`:
 
 ---
 
-## Plugin System (Backend)
+## Backend Plugin System
 
 ```python
 # backend/plugins/my_plugin.py
-class MyPlugin(BasePlugin):
-    name = "my_service"
-    config_schema = {"url": str, "api_key": str}
-
-    def get_stats(self) -> dict: ...
-    def get_newsletter_block(self) -> NewsletterBlock: ...
+# Add custom data sources for the newsletter or stats API
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] v2.1 – Live TMDB posters in app
+- [ ] v2.1 – TMDB poster images in app (cached_network_image)
 - [ ] v2.2 – Jellyfin watch history per user
+- [ ] v2.3 – Auto token refresh
 - [ ] v2.5 – Sonarr/Radarr calendar widget
 - [ ] v2.5 – Immich recent photos widget
 - [ ] v3.0 – App Store release
 
 ---
 
-## Credits
+## License
 
-Built by Constantin Trapp · Self-hosted on Proxmox VE
-Powered by Jellyfin, n8n, Ollama, TMDB
+MIT

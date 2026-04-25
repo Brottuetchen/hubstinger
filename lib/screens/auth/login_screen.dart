@@ -28,7 +28,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _loadUrl() async {
     final url = await AuthService.instance.getBaseUrl();
-    _urlCtrl.text = url;
+    if (mounted) {
+      _urlCtrl.text = url;
+      if (url.isEmpty) setState(() => _showServerField = true);
+    }
   }
 
   @override
@@ -41,7 +44,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _login() async {
     final url = _urlCtrl.text.trim();
-    if (url.isNotEmpty) await AuthService.instance.saveBaseUrl(url);
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitte Server-URL eingeben'),
+          backgroundColor: AppColors.amber,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      setState(() => _showServerField = true);
+      return;
+    }
+    await AuthService.instance.saveBaseUrl(url);
 
     final ok = await ref.read(authProvider.notifier)
         .login(_usernameCtrl.text.trim(), _passwordCtrl.text);
@@ -130,7 +144,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 12),
                           _buildField(
                             controller: _urlCtrl,
-                            hint: 'https://hub.t-acc.com',
+                            hint: 'https://your-server.com oder http://192.168.1.10:8080',
                             icon: Icons.link,
                             keyboardType: TextInputType.url,
                           ),

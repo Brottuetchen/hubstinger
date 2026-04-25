@@ -1,9 +1,8 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _kToken       = 'auth_token';
-const _kBaseUrl     = 'server_base_url';
-const _kDefaultUrl  = 'https://hub.t-acc.com';
+const _kToken   = 'auth_token';
+const _kBaseUrl = 'server_base_url';
 
 class AuthService {
   AuthService._();
@@ -27,8 +26,10 @@ class AuthService {
 
   Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kBaseUrl) ?? _kDefaultUrl;
+    return prefs.getString(_kBaseUrl) ?? '';
   }
+
+  Future<bool> get isConfigured async => (await getBaseUrl()).isNotEmpty;
 
   Future<void> saveBaseUrl(String url) async {
     final prefs = await SharedPreferences.getInstance();
