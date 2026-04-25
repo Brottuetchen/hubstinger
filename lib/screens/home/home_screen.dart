@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../core/constants/colors.dart';
 import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../../widgets/glass/glass_card.dart';
 import 'widgets/streaming_widget.dart';
 import 'widgets/newsletter_widget.dart';
@@ -22,21 +26,51 @@ const List<WidgetSlot> _defaultLayout = [
   WidgetSlot(id: 'nas',            size: WidgetSize.small),
 ];
 
-class HomeScreen extends StatefulWidget {
+const _kLayoutKey = 'home_widget_layout';
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<WidgetSlot> _layout = List.from(_defaultLayout);
   bool _editing = false;
+  bool _layoutLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLayout();
+  }
+
+  Future<void> _loadLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kLayoutKey);
+    if (raw != null) {
+      try {
+        final list = (jsonDecode(raw) as List)
+            .map((e) => WidgetSlot.fromJson(e as Map<String, dynamic>))
+            .toList();
+        if (mounted) setState(() { _layout = list; _layoutLoaded = true; });
+        return;
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _layoutLoaded = true);
+  }
+
+  Future<void> _saveLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLayoutKey, jsonEncode(_layout.map((s) => s.toJson()).toList()));
+  }
 
   void _toggleEdit() => setState(() => _editing = !_editing);
 
   void _removeWidget(int index) {
     setState(() => _layout.removeAt(index));
+    _saveLayout();
   }
 
   void _moveUp(int index) {
@@ -46,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _layout[index] = _layout[index - 1];
       _layout[index - 1] = tmp;
     });
+    _saveLayout();
   }
 
   void _moveDown(int index) {
@@ -55,10 +90,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _layout[index] = _layout[index + 1];
       _layout[index + 1] = tmp;
     });
+    _saveLayout();
   }
 
   void _addWidget(WidgetSlot slot) {
     setState(() => _layout.add(slot));
+    _saveLayout();
   }
 
   void _showAddSheet() {
@@ -259,8 +296,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Text('Constantin',
-                          style: TextStyle(fontSize: 13, color: Colors.white38),
+                        Text(
+                          ref.watch(authProvider).user?['full_name'] as String?
+                              ?? ref.watch(authProvider).user?['username'] as String?
+                              ?? 'Family Hub',
+                          style: const TextStyle(fontSize: 13, color: Colors.white38),
                         ),
                         if (_editing) ...[
                           const SizedBox(width: 8),
@@ -402,12 +442,16 @@ class _HomeScreenState extends State<HomeScreen> {
       'newsletter'    => const NewsletterWidget(),
       'recently'      => const RecentlyWidget(),
       'watchtime'     => const WatchtimeWidget(),
-      'containers'    => const StatWidget(emoji: '🐳', value: '23', label: 'Container', sub: 'Proxmox', color: AppColors.violet),
-      'streams_count' => const StatWidget(emoji: '▶️', value: '2',  label: 'Streams',   sub: 'Aktiv',   color: AppColors.cyan),
-      'uptime'        => const StatWidget(emoji: '✅', value: '99.8%', label: 'Uptime', sub: '23 Services', color: AppColors.green),
-      'nas'           => const StatWidget(emoji: '💾', value: '4.1TB', label: 'NAS frei', sub: '44% belegt', color: AppColors.amber),
-      'proxmox'       => const StatWidget(emoji: '🖥️', value: '23%', label: 'CPU', sub: 'Ryzen 9 7900X3D', color: AppColors.orange),
-      'requests'      => const StatWidget(emoji: '🎥', value: '3', label: 'Requests', sub: 'Jellyseerr', color: AppColors.rose),
+      'containers'    => const StatWidget(emoji: '🐳', value: '–', label: 'Container', sub: 'Proxmox', color: AppColors.violet),
+      'streams_count' => LiveStatWidget(emoji: '▶️', label: 'Streams', statsKey: 'active_streams',
+                           sub: 'Aktiv', color: AppColors.cyan,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'uptime'        => LiveStatWidget(emoji: '✅', label: 'Uptime', statsKey: 'uptime_pct',
+                           sub: 'Services', color: AppColors.green,
+                           formatter: (v) => v != null ? '${v.toStringAsFixed(1)}%' : '–'),
+      'nas'           => const StatWidget(emoji: '💾', value: '–', label: 'NAS frei', sub: 'konfigurieren', color: AppColors.amber),
+      'proxmox'       => const StatWidget(emoji: '🖥️', value: '–', label: 'CPU', sub: 'Proxmox', color: AppColors.orange),
+      'requests'      => const StatWidget(emoji: '🎥', value: '–', label: 'Requests', sub: 'Jellyseerr', color: AppColors.rose),
       _ => const SizedBox(),
     };
 

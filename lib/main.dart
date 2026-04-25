@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/colors.dart';
 import 'core/theme/app_theme.dart';
+import 'providers/providers.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/services/services_screen.dart';
 import 'screens/newsletter/newsletter_screen.dart';
@@ -18,7 +21,7 @@ void main() {
     systemNavigationBarColor: Colors.transparent,
   ));
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  runApp(const FamilyHubApp());
+  runApp(const ProviderScope(child: FamilyHubApp()));
 }
 
 class FamilyHubApp extends StatelessWidget {
@@ -30,8 +33,31 @@ class FamilyHubApp extends StatelessWidget {
       title: 'Family Hub',
       theme: AppTheme.dark,
       debugShowCheckedModeBanner: false,
-      home: const MainShell(),
+      home: const _AuthGate(),
     );
+  }
+}
+
+// ── Auth Gate ─────────────────────────────────────────────────────────────────
+class _AuthGate extends ConsumerWidget {
+  const _AuthGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
+
+    if (auth.isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.bg,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.violet),
+        ),
+      );
+    }
+
+    if (!auth.isLoggedIn) return const LoginScreen();
+
+    return const MainShell();
   }
 }
 
@@ -66,16 +92,11 @@ class _MainShellState extends State<MainShell> {
       extendBody: true,
       body: Stack(
         children: [
-          // ── Animated background orbs ──
           const _BackgroundOrbs(),
-
-          // ── Screen content ──
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: _screens[_tab],
           ),
-
-          // ── Bottom Tab Bar ──
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: _BottomBar(
@@ -197,7 +218,6 @@ class _BottomBar extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Drag handle
                   Container(
                     width: 36, height: 4,
                     decoration: BoxDecoration(
@@ -220,7 +240,6 @@ class _BottomBar extends StatelessWidget {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Active indicator
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
                                 height: 3,

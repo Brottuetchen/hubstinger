@@ -1,15 +1,16 @@
 # Family Hub - TODO
 
 > Letzter Stand: April 2026 · Repo: github.com/Brottuetchen/hubstinger
+> Stand Code: claude/work-through-todos-xWv5P
 
 ---
 
 ## 🔴 KRITISCH – App läuft nicht ohne das
 
-- [ ] **Dart Import-Fehler fixen** – `streaming_widget.dart` etc. sind Stubs, re-exports broken
-- [ ] **`backend/plugins/__init__.py`** anlegen → Python import schlägt sonst fehl
-- [ ] **API Service** (`lib/services/api_service.dart`) – Flutter macht noch keine HTTP-Calls
-- [ ] **Auth Flow** – kein Login Screen, kein Token Storage, kein Logout
+- [x] **Dart Import-Fehler fixen** – Widget-Dateien aufgeteilt, jede Klasse in eigener Datei
+- [x] **`backend/plugins/__init__.py`** angelegt
+- [x] **API Service** (`lib/services/api_service.dart`) – HTTP-Calls mit JWT-Interceptor
+- [x] **Auth Flow** – Login Screen ✓, Token Storage (flutter_secure_storage) ✓, Logout ✓
 - [ ] **CF Tunnel / NPM** für `hub.t-acc.com` → HTTPS Pflicht für Push
 - [ ] **`.env` befüllen** auf LXC 192.168.188.50 – Jellyfin, TMDB, Jellyseerr Keys
 - [ ] **GitHub Token invalidieren** – den aus dem Chat sofort neu generieren
@@ -19,21 +20,21 @@
 ## 🟠 CORE FEATURES – App nutzbar aber unvollständig
 
 ### Auth & SSO
-- [ ] **Login Screen** (Email + Password) als Fallback
+- [x] **Login Screen** (Email + Password) als Fallback
 - [ ] **Authentik OAuth2/OIDC** einrichten
   - [ ] Authentik: neue Application + Provider anlegen (OIDC)
   - [ ] Redirect URI: `hubstinger://auth/callback`
   - [ ] Flutter: `flutter_appauth` + `flutter_secure_storage` einbinden
   - [ ] Backend: OIDC Token Verification gegen Authentik JWKS Endpoint
   - [ ] `GET /api/auth/oidc/callback` Endpoint im Backend
-- [ ] **Token Storage** – JWT sicher speichern (flutter_secure_storage)
+- [x] **Token Storage** – JWT sicher gespeichert (flutter_secure_storage)
 - [ ] **Auto-Refresh** – Token renewal im Hintergrund
-- [ ] **Logout** – Token invalidieren + secure storage leeren
+- [x] **Logout** – Token invalidieren + secure storage leeren
 
 ### Flutter App
-- [ ] **Widget Layout Persistence** – SharedPreferences, überlebt App-Neustart
-- [ ] **Echte Jellyfin Sessions** verdrahten → Now Streaming Widget
-- [ ] **Echte Recently Added** verdrahten → Jellyfin Widget
+- [x] **Widget Layout Persistence** – SharedPreferences, überlebt App-Neustart
+- [x] **Echte Jellyfin Sessions** verdrahten → Now Streaming Widget (via Riverpod Provider)
+- [x] **Echte Recently Added** verdrahten → Jellyfin Widget (via Riverpod Provider)
 - [ ] **TMDB Poster** laden → `cached_network_image` nutzen
 - [ ] **Push Notifications** – `firebase_messaging` initialisieren, beim Backend registrieren
 - [ ] **iPad Sidebar Navigation** – Tab-Wechsel verdrahten
