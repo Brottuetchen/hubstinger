@@ -1,0 +1,19 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "Dart-Code.dart-code",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "dart.flutterSdkPath": null,
+  "dart.lineLength": 100,
+  "editor.rulers": [100],
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/.flutter-plugins": true,
+    "**/.flutter-plugins-dependencies": true
+  },
+  "terminal.integrated.env.windows": {
+    "FLUTTER_ROOT": "${env:FLUTTER_ROOT}"
+  }
+}
