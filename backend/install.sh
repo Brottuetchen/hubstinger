@@ -187,10 +187,19 @@ if [[ -f "$VAPID_FILE" || -n "$CURRENT_VPK" ]]; then
 else
     info "Generating VAPID keys …"
     python -c "
-from pywebpush import Vapid
+import json, base64
+from py_vapid import Vapid
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 v = Vapid()
 v.generate_keys()
-v.save_files()
+
+private_pem = v.private_pem().decode()
+pub_bytes   = v.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+public_b64  = base64.urlsafe_b64encode(pub_bytes).rstrip(b'=').decode()
+
+with open('vapid_keys.json', 'w') as f:
+    json.dump({'private_key': private_pem, 'public_key': public_b64}, f, indent=2)
 print('  Keys saved to vapid_keys.json')
 "
     ok "VAPID keys generated (vapid_keys.json)"
