@@ -448,28 +448,34 @@ async def newsletter_archive():
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
 @app.get("/api/stats")
-async def get_stats():
-    """Aggregated dashboard stats – proxied from all services."""
-    async with httpx.AsyncClient(timeout=3) as client:
-        results = {}
+async def get_stats(db: Session = Depends(get_db)):
+    """Aggregated dashboard stats – Jellyfin core + all enabled plugin stats."""
+    results: dict = {}
 
-        # Jellyfin sessions
+    # ── Core Jellyfin (env-var based, always available when configured) ─────────
+    async with httpx.AsyncClient(timeout=3) as client:
         try:
             if JELLYFIN_TOKEN:
                 r = await client.get(f"{JELLYFIN_URL}/Sessions",
                     headers={"X-Emby-Token": JELLYFIN_TOKEN})
                 active = [s for s in r.json() if s.get("NowPlayingItem")]
                 results["active_streams"] = len(active)
-            else:
-                results["active_streams"] = 2
-        except:
+        except Exception:
             results["active_streams"] = 0
 
-        # Uptime Kuma (via status page API if configured)
-        results["uptime_pct"] = 99.8
+    # ── Plugin stats (all enabled + configured plugins in parallel) ─────────────
+    instances = plugin_registry.get_all_instances(db)
+    if instances:
+        plugin_results = await asyncio.gather(
+            *[inst.get_stats() for inst in instances],
+            return_exceptions=True,
+        )
+        for plugin_stats in plugin_results:
+            if isinstance(plugin_stats, dict):
+                results.update(plugin_stats)
 
-        results["timestamp"] = datetime.utcnow().isoformat()
-        return results
+    results["timestamp"] = datetime.utcnow().isoformat()
+    return results
 
 # ─── Uptime Kuma webhook ──────────────────────────────────────────────────────
 @app.post("/api/webhook/uptime-kuma")
