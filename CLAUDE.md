@@ -9,9 +9,9 @@ It is automatically read by Claude Code in VS Code.
 
 Family Hub is a self-hosted media & homelab dashboard app.
 - **Flutter app** (iOS, iPad, Android) with Liquid Glass dark UI
-- **FastAPI backend** (Python) running on LXC at 192.168.188.50:8080
+- **FastAPI backend** (Python) running on LXC at `<backend-ip>:8080`
 - **n8n automation** for weekly newsletter generation
-- **Cloudflare Tunnel** for HTTPS → hub.t-acc.com
+- **Cloudflare Tunnel** for HTTPS → `<your-domain>`
 
 ---
 
@@ -20,16 +20,16 @@ Family Hub is a self-hosted media & homelab dashboard app.
 ```
 Flutter App (iOS/iPad/Android)
     ↕ HTTPS
-Cloudflare Tunnel (hub.t-acc.com)
+Cloudflare Tunnel (<your-domain>)
     ↕
-FastAPI Backend (:8080) on LXC 192.168.188.50
-    ├── Jellyfin     (192.168.188.x:8096)
-    ├── Jellyseerr   (192.168.188.x:5055)
+FastAPI Backend (:8080) on LXC <backend-ip>
+    ├── Jellyfin     (<homelab-ip>:8096)
+    ├── Jellyseerr   (<homelab-ip>:5055)
     ├── TMDB API     (external)
-    ├── Ollama       (192.168.188.110:11434, Qwen3:14b)
-    └── Uptime Kuma  (192.168.188.x:3001)
+    ├── Ollama       (<ollama-ip>:11434)
+    └── Uptime Kuma  (<homelab-ip>:3001)
 
-n8n (192.168.188.x:5678)
+n8n (<homelab-ip>:5678)
     └── Weekly cron → POST /api/newsletter/generate
 ```
 
@@ -41,11 +41,11 @@ n8n (192.168.188.x:5678)
 |-----------|-----------|
 | App | Flutter 3.x (Dart) |
 | State | flutter_riverpod |
-| Navigation | go_router |
 | Animations | flutter_animate |
-| HTTP | dio + http |
+| HTTP | http |
+| Deep Links | app_links |
 | Backend | FastAPI + SQLAlchemy + SQLite |
-| Auth | JWT (python-jose) + bcrypt |
+| Auth | JWT (python-jose) + bcrypt + Authentik OIDC |
 | Push | Web Push / VAPID (pywebpush) |
 | Images | TMDB API (https://image.tmdb.org/t/p/w342{path}) |
 
@@ -56,24 +56,30 @@ n8n (192.168.188.x:5678)
 ```
 family_hub/
 ├── lib/
-│   ├── main.dart                          ← App entry, tab bar, background
+│   ├── main.dart                          ← App entry, tab bar, deep links, auth gate
 │   ├── core/constants/colors.dart         ← ALL design tokens (edit here)
 │   ├── core/theme/app_theme.dart          ← MaterialApp theme
 │   ├── models/models.dart                 ← All data models
+│   ├── providers/providers.dart           ← Riverpod providers + AuthNotifier
+│   ├── services/
+│   │   ├── api_service.dart               ← All API calls
+│   │   ├── auth_service.dart              ← Token storage + JWT expiry decoder
+│   │   └── push_service.dart              ← Push notification stub
 │   ├── widgets/glass/glass_card.dart      ← Liquid Glass component system
 │   └── screens/
-│       ├── home/home_screen.dart          ← Widget grid + iOS edit mode
-│       ├── home/widgets/all_widgets.dart  ← All home widgets
+│       ├── home/home_screen.dart          ← Widget grid + iOS edit mode + iPad sidebar
+│       ├── home/widgets/                  ← All home widgets (stat, streaming, recently, …)
 │       ├── services/services_screen.dart  ← Service grid
 │       ├── newsletter/newsletter_screen.dart
 │       └── settings/settings_screen.dart
 └── backend/
     ├── main.py                            ← FastAPI app + all endpoints
+    ├── install.sh                         ← One-command setup script
     ├── create_admin.py                    ← Run once to create admin user
     ├── .env.example                       ← Copy to .env and fill in
-    ├── vapid_keys.json                    ← Generated VAPID keys
-    └── plugins/
-        └── newsletter_builder.py          ← n8n newsletter pipeline
+    ├── base_plugin.py                     ← BasePlugin ABC
+    ├── plugin_registry.py                 ← Auto-discovery + DB persistence
+    └── plugins/                           ← 13 built-in plugins
 ```
 
 ---
@@ -123,27 +129,45 @@ Home screen has iOS-style editable widget grid.
 - `large` → full width, flexible
 - `tall` → 1/2 width, spans 2 rows (for newsletter widget)
 
+**Live stat widgets** read from `/api/stats` via `LiveStatWidget(statsKey: 'key_name', ...)`.
+Plugin stats are aggregated in parallel via `asyncio.gather` in `main.py`.
+
 ---
 
 ## Backend API
 
-Base URL: `https://hub.t-acc.com` (or `http://192.168.188.50:8080` locally)
+Base URL: `https://<your-domain>` (or `http://<backend-ip>:8080` locally)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/auth/token` | Login → JWT |
+| POST | `/api/auth/refresh` | Renew JWT (auth required) |
 | GET | `/api/auth/me` | Current user |
+| GET | `/api/auth/oidc-url` | Authentik login URL |
+| GET | `/api/auth/oidc/callback` | OIDC code exchange |
 | GET | `/api/vapid-public-key` | Push key |
 | POST | `/api/push/subscribe` | Register push |
 | POST | `/api/push/notify` | Send push (admin) |
 | GET | `/api/jellyfin/sessions` | Active streams |
 | GET | `/api/jellyfin/recently-added` | New media |
-| GET | `/api/tmdb/movie/{id}` | Movie details |
+| GET | `/api/jellyfin/image/{id}` | Image proxy |
 | POST | `/api/ollama/summarize` | AI summary |
 | POST | `/api/newsletter/generate` | Build newsletter |
 | GET | `/api/newsletter/archive` | Past newsletters |
-| GET | `/api/stats` | Dashboard stats |
+| GET | `/api/stats` | Dashboard stats (all plugins) |
 | POST | `/api/webhook/uptime-kuma` | Alert webhook |
+| GET | `/admin` | Plugin admin panel |
+| GET/PUT | `/api/plugins/{name}/...` | Plugin CRUD (admin) |
+
+---
+
+## Plugin System
+
+**Adding a new plugin:** create `backend/plugins/my_plugin.py` extending `BasePlugin`.
+Auto-discovered at startup via `pkgutil.iter_modules`. Config stored in SQLite.
+
+**Built-in plugins (13):** Sonarr, Radarr, Proxmox, Jellyseerr, Uptime Kuma, Immich,
+Navidrome, Nextcloud, n8n, Gitea, Portainer, Paperless-ngx, Audiobookshelf.
 
 ---
 
@@ -151,7 +175,7 @@ Base URL: `https://hub.t-acc.com` (or `http://192.168.188.50:8080` locally)
 
 **Trigger:** Every Friday 17:00 (cron)
 **Steps:**
-1. HTTP Request → `POST https://hub.t-acc.com/api/newsletter/generate`
+1. HTTP Request → `POST https://<your-domain>/api/newsletter/generate`
 2. Backend fetches Jellyfin new media
 3. Enriches with TMDB metadata
 4. Generates German summaries via Ollama
@@ -167,8 +191,8 @@ Backend is exposed via Cloudflare Tunnel:
 ```yaml
 # ~/.cloudflared/config.yml on cloudflared LXC
 ingress:
-  - hostname: hub.t-acc.com
-    service: http://192.168.188.50:8080
+  - hostname: <your-domain>
+    service: http://<backend-ip>:8080
   - service: http_status:404
 ```
 
@@ -179,6 +203,8 @@ ingress:
 **Backend:**
 ```bash
 cd backend
+bash install.sh    # first time (interactive setup)
+# or manually:
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # fill in your values
@@ -188,6 +214,8 @@ python main.py         # runs on :8080
 
 **Flutter:**
 ```bash
+# Einmalig nach Clone:
+flutter create --org com.yourname --project-name family_hub .
 flutter pub get
 flutter run            # needs device/emulator
 flutter run -d chrome  # web preview
@@ -221,19 +249,22 @@ flutter build ipa --no-codesign     # iOS (Mac/CI only)
 ### "Newsletter not generating"
 → Check n8n workflow, verify `/api/newsletter/generate` returns 200, check Ollama is running at OLLAMA_URL
 
+### "Token expired / auth loop"
+→ `POST /api/auth/refresh` renews token. Flutter auto-refreshes on app resume if < 2 days left.
+
 ---
 
 ## Infrastructure
 
-| Service | IP | Port |
-|---------|-----|------|
-| Family Hub Backend | 192.168.188.50 | 8080 |
-| Jellyfin | 192.168.188.x | 8096 |
-| Jellyseerr | 192.168.188.x | 5055 |
-| n8n | 192.168.188.x | 5678 |
-| Ollama | 192.168.188.110 | 11434 |
-| Proxmox | 192.168.188.x | 8006 |
-| NPM | 192.168.188.4 | 81 |
+Configure your actual IPs/ports in `backend/.env` (gitignored).
+The table below shows the expected services – fill in your values:
 
-Proxmox host: Fritzbox network 192.168.188.x
-Ollama model: Qwen3:14b on RTX 4080 Super
+| Service | Env Var | Default Port |
+|---------|---------|:------------:|
+| Family Hub Backend | `BACKEND_URL` | 8080 |
+| Jellyfin | `JELLYFIN_URL` | 8096 |
+| Jellyseerr | Plugin config | 5055 |
+| n8n | Plugin config | 5678 |
+| Ollama | `OLLAMA_URL` | 11434 |
+| Proxmox | Plugin config | 8006 |
+| Authentik | `AUTHENTIK_URL` | 9000 |

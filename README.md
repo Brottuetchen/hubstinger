@@ -42,26 +42,36 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
 ### 1 – Backend
 
+**Option A – Installer (empfohlen)**
+
 ```bash
 cd backend
+bash install.sh
+```
 
-# Python 3.11+ required
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+Das Script erledigt alles interaktiv:
+- Python-Venv + `pip install`
+- `SECRET_KEY` automatisch generieren
+- `.env` befüllen (Jellyfin, Ollama, VAPID, …)
+- Admin-User anlegen
+- VAPID-Keys generieren
+- Optionaler systemd-Service
 
+Danach: `source venv/bin/activate && python main.py`
+
+---
+
+**Option B – Manuell**
+
+```bash
+cd backend
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Configure
 cp .env.example .env
-nano .env                         # Fill in required values (see comments)
-
-# Generate a strong SECRET_KEY (paste into .env)
-openssl rand -hex 32
-
-# Create admin account (interactive)
+# SECRET_KEY setzen:
+sed -i "s|^SECRET_KEY=.*|SECRET_KEY=$(openssl rand -hex 32)|" .env
+nano .env                         # Rest der Werte eintragen
 python create_admin.py
-
-# Start backend (port 8080)
 python main.py
 ```
 
