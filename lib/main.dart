@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/colors.dart';
 import 'core/theme/app_theme.dart';
@@ -13,7 +12,6 @@ import 'screens/home/home_screen.dart';
 import 'screens/services/services_screen.dart';
 import 'screens/newsletter/newsletter_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'widgets/glass/glass_card.dart';
 import 'dart:ui';
 
 void main() {
