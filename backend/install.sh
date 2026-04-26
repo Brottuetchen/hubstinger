@@ -215,7 +215,10 @@ if [[ "${SYSTEMD_CHOICE,,}" == "y" ]]; then
     VENV_BIN="${WORK_DIR}/venv/bin"
     CURRENT_USER="$(whoami)"
 
-    sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+    # Use sudo only when not already root
+    _sudo() { [[ "$(id -u)" == "0" ]] && "$@" || sudo "$@"; }
+
+    _sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
 Description=Family Hub Backend
 After=network.target
@@ -233,8 +236,8 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now "$SERVICE_NAME"
+    _sudo systemctl daemon-reload
+    _sudo systemctl enable --now "$SERVICE_NAME"
     ok "Service installed and started: systemctl status ${SERVICE_NAME}"
 else
     info "Skipped systemd setup"
