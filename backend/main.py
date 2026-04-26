@@ -4,25 +4,34 @@ Endpoints: Auth, Push Notifications, Stats, Newsletter
 """
 
 import os
+import sys
 import json
 import logging
 import asyncio
+import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
+from urllib.parse import urlencode
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 from pywebpush import webpush, WebPushException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -34,24 +43,41 @@ BASE_DIR   = Path(__file__).parent
 PUBLIC_DIR = BASE_DIR.parent / "public"
 
 # JWT
-SECRET_KEY     = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PRODUCTION_use_openssl_rand_hex_32")
-ALGORITHM      = "HS256"
+_SECRET_KEY_DEFAULT = "CHANGE_ME_IN_PRODUCTION_use_openssl_rand_hex_32"
+SECRET_KEY          = os.getenv("SECRET_KEY", _SECRET_KEY_DEFAULT)
+ALGORITHM           = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 # VAPID (Web Push)
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
-VAPID_EMAIL       = os.getenv("VAPID_EMAIL", "mailto:admin@t-acc.com")
+VAPID_EMAIL       = os.getenv("VAPID_EMAIL", "")
+
+# CORS – comma-separated list of allowed origins; * only for dev
+_cors_raw    = os.getenv("CORS_ORIGINS", "")
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()] or ["*"]
+
+# Public backend URL (needed for OIDC redirect_uri)
+BACKEND_URL  = os.getenv("BACKEND_URL", "http://localhost:8080")
+
+# Authentik OIDC
+AUTHENTIK_URL           = os.getenv("AUTHENTIK_URL", "")           # e.g. https://auth.example.com
+AUTHENTIK_CLIENT_ID     = os.getenv("AUTHENTIK_CLIENT_ID", "")
+AUTHENTIK_CLIENT_SECRET = os.getenv("AUTHENTIK_CLIENT_SECRET", "")
 
 # External services
-JELLYFIN_URL    = os.getenv("JELLYFIN_URL", "http://192.168.188.x:8096")
+JELLYFIN_URL    = os.getenv("JELLYFIN_URL", "")
 JELLYFIN_TOKEN  = os.getenv("JELLYFIN_TOKEN", "")
-JELLYSEERR_URL  = os.getenv("JELLYSEERR_URL", "http://192.168.188.x:5055")
+JELLYSEERR_URL  = os.getenv("JELLYSEERR_URL", "")
 JELLYSEERR_KEY  = os.getenv("JELLYSEERR_API_KEY", "")
 TMDB_API_KEY    = os.getenv("TMDB_API_KEY", "")
-OLLAMA_URL      = os.getenv("OLLAMA_URL", "http://192.168.188.110:11434")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3:14b")
+OLLAMA_URL      = os.getenv("OLLAMA_URL", "")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")
 UPTIME_KUMA_URL = os.getenv("UPTIME_KUMA_URL", "")
+
+# In-memory OIDC state store {state: {"created": datetime, "nonce": str}}
+# Single-instance only – fine for self-hosted
+_oidc_states: dict[str, dict] = {}
 
 # Load VAPID from file if not in env
 _vapid_file = BASE_DIR / "vapid_keys.json"
@@ -83,6 +109,19 @@ class PushSubModel(Base):
     p256dh     = Column(String)
     username   = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class FcmTokenModel(Base):
+    __tablename__ = "fcm_tokens"
+    token      = Column(String, primary_key=True)
+    username   = Column(String, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class PluginConfigModel(Base):
+    __tablename__ = "plugin_configs"
+    name        = Column(String, primary_key=True, index=True)
+    enabled     = Column(Boolean, default=False)
+    config_json = Column(Text, default="{}")
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
 
@@ -121,6 +160,11 @@ def get_current_user(token: str = Depends(oauth2), db: Session = Depends(get_db)
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def require_admin(user: UserModel = Depends(get_current_user)) -> UserModel:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin required")
+    return user
+
 # ─── Pydantic schemas ─────────────────────────────────────────────────────────
 class Token(BaseModel):
     access_token: str
@@ -143,34 +187,99 @@ class UserCreate(BaseModel):
     full_name: Optional[str] = None
     password: str
 
+class PluginToggleBody(BaseModel):
+    enabled: bool
+
+class PluginConfigBody(BaseModel):
+    config: dict
+
+# ─── Plugin Registry ──────────────────────────────────────────────────────────
+from plugin_registry import registry as plugin_registry
+
+# ─── Templates ────────────────────────────────────────────────────────────────
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
 # ─── App ──────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("Family Hub API starting...")
-    logger.info(f"VAPID configured: {bool(VAPID_PUBLIC_KEY)}")
-    logger.info(f"Jellyfin: {JELLYFIN_URL}")
-    logger.info(f"TMDB: {'configured' if TMDB_API_KEY else 'NOT configured'}")
+
+    # Hard-abort on default secret key – no silent security holes
+    if SECRET_KEY == _SECRET_KEY_DEFAULT:
+        logger.critical("FATAL: SECRET_KEY is the default placeholder.")
+        logger.critical("       Run: openssl rand -hex 32  and set it in .env")
+        sys.exit(1)
+
+    if CORS_ORIGINS == ["*"]:
+        logger.warning("⚠️  CORS_ORIGINS=* – restrict in production via CORS_ORIGINS env var")
+    if not VAPID_EMAIL:
+        logger.warning("⚠️  VAPID_EMAIL not set – push notifications disabled")
+
+    logger.info(f"CORS:       {CORS_ORIGINS}")
+    logger.info(f"Jellyfin:   {'✓ ' + JELLYFIN_URL if JELLYFIN_URL else '✗ not configured'}")
+    logger.info(f"TMDB:       {'✓' if TMDB_API_KEY else '✗ not configured'}")
+    logger.info(f"Ollama:     {'✓ ' + OLLAMA_URL if OLLAMA_URL else '✗ not configured'}")
+    logger.info(f"VAPID:      {'✓' if VAPID_PUBLIC_KEY else '✗ not configured'}")
+    logger.info(f"Authentik:  {'✓ ' + AUTHENTIK_URL if AUTHENTIK_URL else '✗ not configured'}")
     logger.info("=" * 50)
     yield
     logger.info("Family Hub API shutting down...")
 
-app = FastAPI(title="Family Hub API", version="2.0.0", lifespan=lifespan)
+limiter = Limiter(key_func=get_remote_address)
 
-app.add_middleware(CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="Family Hub API",
+    version="2.0.0",
+    lifespan=lifespan,
+    # Hide docs in production by checking an env var
+    docs_url="/docs" if os.getenv("ENABLE_DOCS", "").lower() == "true" else None,
+    redoc_url=None,
 )
 
-# Serve frontend if public dir exists
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Security headers ──────────────────────────────────────────────────────────
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> StarletteResponse:
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        return response
+
+app.add_middleware(_SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+# ── Global exception handler (no stack traces in responses) ───────────────────
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s: %s",
+                 request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+# ── Static assets ─────────────────────────────────────────────────────────────
 if PUBLIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(PUBLIC_DIR / "assets")), name="assets")
 
 # ─── Auth endpoints ───────────────────────────────────────────────────────────
 @app.post("/api/auth/token", response_model=Token)
-async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     user = db.query(UserModel).filter(UserModel.username == form.username).first()
     if not user or not verify_password(form.password, user.hashed_pw):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
@@ -180,6 +289,110 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depen
 async def get_me(user: UserModel = Depends(get_current_user)):
     return {"username": user.username, "email": user.email,
             "full_name": user.full_name, "is_admin": user.is_admin}
+
+@app.post("/api/auth/refresh", response_model=Token)
+async def refresh_token(user: UserModel = Depends(get_current_user)):
+    """Issue a fresh JWT for the currently authenticated user."""
+    return {"access_token": create_token({"sub": user.username}), "token_type": "bearer"}
+
+# ─── OIDC / Authentik ─────────────────────────────────────────────────────────
+@app.get("/api/auth/oidc-url")
+async def oidc_login_url():
+    """Return the Authentik authorization URL for the Flutter app to open."""
+    if not AUTHENTIK_URL or not AUTHENTIK_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="OIDC not configured")
+    state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
+    _oidc_states[state] = {"created": datetime.utcnow(), "nonce": nonce}
+    # Purge states older than 10 minutes
+    cutoff = datetime.utcnow() - timedelta(minutes=10)
+    stale  = [k for k, v in _oidc_states.items() if v["created"] < cutoff]
+    for k in stale:
+        del _oidc_states[k]
+
+    params = urlencode({
+        "client_id":     AUTHENTIK_CLIENT_ID,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "redirect_uri":  f"{BACKEND_URL}/api/auth/oidc/callback",
+        "state":         state,
+        "nonce":         nonce,
+    })
+    return {"url": f"{AUTHENTIK_URL}/application/o/authorize/?{params}"}
+
+
+@app.get("/api/auth/oidc/callback")
+@limiter.limit("20/minute")
+async def oidc_callback(
+    request: Request,
+    code: str,
+    state: str,
+    db: Session = Depends(get_db),
+):
+    """Authentik redirects here after login. Exchanges code, issues Hub JWT."""
+    # Validate state
+    state_data = _oidc_states.pop(state, None)
+    if not state_data:
+        raise HTTPException(status_code=400, detail="Invalid or expired OIDC state")
+
+    # Exchange code for tokens
+    token_url = f"{AUTHENTIK_URL}/application/o/token/"
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.post(token_url, data={
+                "grant_type":   "authorization_code",
+                "code":         code,
+                "redirect_uri": f"{BACKEND_URL}/api/auth/oidc/callback",
+                "client_id":    AUTHENTIK_CLIENT_ID,
+                "client_secret": AUTHENTIK_CLIENT_SECRET,
+            })
+            if r.status_code != 200:
+                logger.error("OIDC token exchange failed: %s %s", r.status_code, r.text)
+                raise HTTPException(status_code=502, detail="OIDC token exchange failed")
+            token_data = r.json()
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Authentik unreachable: {e}")
+
+    # Decode ID token (verification via JWKS optional for self-hosted – we control the IdP)
+    id_token = token_data.get("id_token", "")
+    try:
+        claims = jwt.decode(id_token, options={"verify_signature": False})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ID token decode failed: {e}")
+
+    oidc_sub   = claims.get("sub", "")
+    email      = claims.get("email", "")
+    full_name  = claims.get("name", "") or claims.get("preferred_username", email)
+
+    if not email:
+        raise HTTPException(status_code=400, detail="No email in OIDC token")
+
+    # Create or update user
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if user is None:
+        username = email.split("@")[0].replace(".", "_").lower()
+        # Ensure username uniqueness
+        base, n = username, 1
+        while db.query(UserModel).filter(UserModel.username == username).first():
+            username = f"{base}{n}"; n += 1
+        user = UserModel(
+            username=username,
+            email=email,
+            full_name=full_name,
+            hashed_pw=f"oidc:{oidc_sub}",  # no password login for OIDC users
+            is_admin=False,
+        )
+        db.add(user)
+        db.commit()
+        logger.info("OIDC: new user created: %s (%s)", username, email)
+    else:
+        user.full_name = full_name
+        db.commit()
+
+    hub_token = create_token({"sub": user.username})
+    # Redirect to Flutter deep link; browser shows fallback if app not installed
+    redirect_url = f"hubstinger://auth?token={hub_token}"
+    return RedirectResponse(url=redirect_url, status_code=302)
 
 # ─── Push Notifications ───────────────────────────────────────────────────────
 @app.get("/api/vapid-public-key")
@@ -241,15 +454,30 @@ async def send_notification(payload: PushPayload, db: Session = Depends(get_db))
     db.commit()
     return results
 
+class FcmSubscribeBody(BaseModel):
+    fcm_token: str
+
+@app.post("/api/push/subscribe-fcm")
+async def subscribe_fcm(
+    body: FcmSubscribeBody,
+    user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Register an FCM device token for native push notifications."""
+    existing = db.query(FcmTokenModel).filter(FcmTokenModel.token == body.fcm_token).first()
+    if existing:
+        existing.username  = user.username
+        existing.updated_at = datetime.utcnow()
+    else:
+        db.add(FcmTokenModel(token=body.fcm_token, username=user.username))
+    db.commit()
+    return {"status": "registered"}
+
 # ─── Jellyfin ─────────────────────────────────────────────────────────────────
 @app.get("/api/jellyfin/sessions")
 async def jellyfin_sessions():
     if not JELLYFIN_TOKEN:
-        return {"sessions": [], "mock": True,
-                "data": [
-                    {"title": "Dune: Part Two", "user": "Lena", "progress": 62, "type": "Movie"},
-                    {"title": "Severance S02",  "user": "Constantin", "progress": 34, "type": "Episode"},
-                ]}
+        return {"sessions": [], "mock": True, "hint": "Set JELLYFIN_TOKEN in .env"}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.get(f"{JELLYFIN_URL}/Sessions",
@@ -272,11 +500,7 @@ async def jellyfin_sessions():
 @app.get("/api/jellyfin/recently-added")
 async def recently_added(days: int = 7, limit: int = 10):
     if not JELLYFIN_TOKEN:
-        return {"items": [
-            {"title": "A Complete Unknown", "type": "Movie",   "added": "heute"},
-            {"title": "Adolescence",        "type": "Episode", "added": "gestern"},
-            {"title": "Black Bag",          "type": "Movie",   "added": "Mo"},
-        ], "mock": True}
+        return {"items": [], "mock": True, "hint": "Set JELLYFIN_TOKEN in .env"}
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             since = (datetime.utcnow() - timedelta(days=days)).isoformat()
@@ -290,13 +514,39 @@ async def recently_added(days: int = 7, limit: int = 10):
             )
             data = r.json()
             return {"items": [
-                {"id": i.get("Id"), "title": i.get("Name"),
-                 "type": i.get("Type"), "tmdb_id": i.get("ProviderIds", {}).get("Tmdb")}
+                {
+                    "id":      i.get("Id"),
+                    "title":   i.get("Name"),
+                    "type":    i.get("Type"),
+                    "tmdb_id": i.get("ProviderIds", {}).get("Tmdb"),
+                    "added":   (i.get("DateCreated") or "")[:10],
+                    "has_image": bool(i.get("ImageTags", {}).get("Primary")),
+                }
                 for i in data.get("Items", [])
             ]}
     except Exception as e:
         logger.error(f"Jellyfin recently-added error: {e}")
         return {"items": [], "error": str(e)}
+
+@app.get("/api/jellyfin/image/{item_id}")
+async def jellyfin_image(item_id: str, width: int = 200):
+    """Proxy Jellyfin primary image so the app doesn't need the internal Jellyfin URL."""
+    from fastapi.responses import Response as FastAPIResponse
+    if not JELLYFIN_TOKEN or not JELLYFIN_URL:
+        raise HTTPException(status_code=503, detail="Jellyfin not configured")
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{JELLYFIN_URL}/Items/{item_id}/Images/Primary",
+            headers={"X-Emby-Token": JELLYFIN_TOKEN},
+            params={"fillWidth": width, "quality": 90},
+        )
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail="Image not found")
+        return FastAPIResponse(
+            content=r.content,
+            media_type=r.headers.get("content-type", "image/jpeg"),
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
 # ─── TMDB ─────────────────────────────────────────────────────────────────────
 @app.get("/api/tmdb/movie/{tmdb_id}")
@@ -371,28 +621,34 @@ async def newsletter_archive():
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
 @app.get("/api/stats")
-async def get_stats():
-    """Aggregated dashboard stats – proxied from all services."""
-    async with httpx.AsyncClient(timeout=3) as client:
-        results = {}
+async def get_stats(db: Session = Depends(get_db)):
+    """Aggregated dashboard stats – Jellyfin core + all enabled plugin stats."""
+    results: dict = {}
 
-        # Jellyfin sessions
+    # ── Core Jellyfin (env-var based, always available when configured) ─────────
+    async with httpx.AsyncClient(timeout=3) as client:
         try:
             if JELLYFIN_TOKEN:
                 r = await client.get(f"{JELLYFIN_URL}/Sessions",
                     headers={"X-Emby-Token": JELLYFIN_TOKEN})
                 active = [s for s in r.json() if s.get("NowPlayingItem")]
                 results["active_streams"] = len(active)
-            else:
-                results["active_streams"] = 2
-        except:
+        except Exception:
             results["active_streams"] = 0
 
-        # Uptime Kuma (via status page API if configured)
-        results["uptime_pct"] = 99.8
+    # ── Plugin stats (all enabled + configured plugins in parallel) ─────────────
+    instances = plugin_registry.get_all_instances(db)
+    if instances:
+        plugin_results = await asyncio.gather(
+            *[inst.get_stats() for inst in instances],
+            return_exceptions=True,
+        )
+        for plugin_stats in plugin_results:
+            if isinstance(plugin_stats, dict):
+                results.update(plugin_stats)
 
-        results["timestamp"] = datetime.utcnow().isoformat()
-        return results
+    results["timestamp"] = datetime.utcnow().isoformat()
+    return results
 
 # ─── Uptime Kuma webhook ──────────────────────────────────────────────────────
 @app.post("/api/webhook/uptime-kuma")
@@ -412,16 +668,62 @@ async def uptime_kuma_webhook(data: dict, db: Session = Depends(get_db)):
 
     return {"received": True}
 
+# ─── Admin UI ────────────────────────────────────────────────────────────────
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_ui(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+# ─── Plugin API ───────────────────────────────────────────────────────────────
+@app.get("/api/plugins")
+async def list_plugins(
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return plugin_registry.list_all(db)
+
+@app.put("/api/plugins/{name}/toggle")
+async def toggle_plugin(
+    name: str,
+    body: PluginToggleBody,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    result = plugin_registry.set_enabled(db, name, body.enabled)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+@app.put("/api/plugins/{name}/config")
+async def update_plugin_config(
+    name: str,
+    body: PluginConfigBody,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    result = plugin_registry.save_config(db, name, body.config)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+@app.post("/api/plugins/{name}/test")
+async def test_plugin(
+    name: str,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return await plugin_registry.test_plugin(db, name)
+
 # ─── Health ───────────────────────────────────────────────────────────────────
 @app.get("/")
 async def health():
     return {
-        "status": "online",
-        "version": "2.0.0",
-        "vapid_configured": bool(VAPID_PUBLIC_KEY),
+        "status":              "online",
+        "version":             "2.0.0",
+        "vapid_configured":    bool(VAPID_PUBLIC_KEY),
         "jellyfin_configured": bool(JELLYFIN_TOKEN),
-        "tmdb_configured": bool(TMDB_API_KEY),
-        "timestamp": datetime.utcnow().isoformat(),
+        "tmdb_configured":     bool(TMDB_API_KEY),
+        "oidc_configured":     bool(AUTHENTIK_URL and AUTHENTIK_CLIENT_ID),
+        "timestamp":           datetime.utcnow().isoformat(),
     }
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

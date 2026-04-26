@@ -1,21 +1,24 @@
-# Family Hub 🎬
+# Family Hub
 
 Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
-**Liquid Glass Dark UI · Widget Grid · Plugin System**
+**Liquid Glass Dark UI · Customizable Widget Grid · Plugin System**
 
 ---
 
 ## Features
 
-- 🪟 **Liquid Glass UI** – visionOS-inspired, fully custom
-- 🧩 **Widget Grid** – iOS-style customizable home screen
-- 📺 **Now Streaming** – live Jellyfin sessions
-- 📬 **Newsletter** – auto-generated weekly via n8n + TMDB + Ollama
-- 📊 **Watchtime** – family leaderboard per week
-- 🔔 **Push Notifications** – via Uptime Kuma + n8n webhooks
-- 📱 **iPad support** – sidebar layout auto-switches at 600px
-- 🔌 **Plugin system** – Jellyfin, Jellyseerr, TMDB, n8n, Uptime Kuma
+- 🪟 **Liquid Glass UI** – visionOS-inspired dark design system
+- 🧩 **Widget Grid** – iOS-style home screen, drag-to-reorder, persisted locally
+- 📺 **Now Streaming** – live Jellyfin session overview
+- 📷 **Media Posters** – Jellyfin thumbnails via built-in image proxy
+- 📬 **Weekly Newsletter** – auto-generated via n8n + TMDB + Ollama
+- 🔌 **Plugin System** – 13 built-in plugins (Sonarr, Radarr, Immich, Proxmox, …)
+- ⚙️ **Admin Panel** – web UI at `/admin` to configure & test plugins
+- 🔔 **Push Notifications** – Web Push via VAPID (FCM-ready)
+- 📱 **iPad** – sidebar layout with fully wired tab navigation
+- 🔐 **Auth** – JWT login, secure storage, silent auto-refresh
+- 🔄 **Token Auto-Refresh** – JWT renewed silently on app resume (< 2 days to expiry)
 
 ---
 
@@ -23,136 +26,288 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
 | Layer | Tech |
 |-------|------|
-| App | Flutter 3.x |
-| Backend | FastAPI (Python) |
-| Automation | n8n |
+| App | Flutter 3.x (Dart) |
+| State | Riverpod |
+| Backend | FastAPI (Python 3.11+) |
+| DB | SQLite via SQLAlchemy |
+| Push | Web Push / VAPID (pywebpush) |
 | Media | Jellyfin + Jellyseerr |
 | Metadata | TMDB API |
-| AI Summaries | Ollama (Qwen3:14b) |
-| Monitoring | Uptime Kuma |
-| Push | Web Push / VAPID |
+| AI Summaries | Ollama |
+| Automation | n8n |
 
 ---
 
 ## Quick Start
 
-### 1. Prerequisites
-
-```bash
-# Install Flutter
-winget install Flutter.Flutter   # Windows
-brew install flutter             # macOS
-
-# Verify
-flutter doctor
-```
-
-### 2. Clone & run
-
-```bash
-git clone https://github.com/YOUR_USERNAME/family-hub.git
-cd family-hub
-flutter pub get
-flutter run
-```
-
-### 3. Configure server
-
-In Settings → Server URL, enter your backend URL:
-```
-https://hub.t-acc.com
-```
-
-### 4. TMDB API Key
-
-1. Register at [themoviedb.org](https://www.themoviedb.org/)
-2. API → Settings → API Key (free)
-3. Enter in Settings → TMDB API
-
----
-
-## Building
-
-### Android (Windows/Linux/Mac)
-
-```bash
-flutter build apk --release
-# Output: build/app/outputs/flutter-apk/app-release.apk
-```
-
-### iOS (Mac only or GitHub Actions)
-
-```bash
-flutter build ipa --release
-```
-
-### GitHub Actions (recommended)
-
-Push to `main` → automatic builds for both platforms.
-
-For TestFlight, add these secrets to your GitHub repo:
-- `IOS_CERTIFICATE_BASE64`
-- `IOS_CERTIFICATE_PASSWORD`
-- `IOS_PROVISIONING_PROFILE_BASE64`
-- `KEYCHAIN_PASSWORD`
-- `APP_STORE_KEY_ID`
-- `APP_STORE_ISSUER_ID`
-- `APP_STORE_API_KEY`
-
----
-
-## Backend (FastAPI)
+### 1 – Backend
 
 ```bash
 cd backend
-python3 -m venv venv && source venv/bin/activate
+
+# Python 3.11+ required
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+
 pip install -r requirements.txt
+
+# Configure
+cp .env.example .env
+nano .env                         # Fill in required values (see comments)
+
+# Generate a strong SECRET_KEY (paste into .env)
+openssl rand -hex 32
+
+# Create admin account (interactive)
 python create_admin.py
-python main.py  # runs on :8080
+
+# Start backend (port 8080)
+python main.py
 ```
+
+Backend läuft auf `http://localhost:8080`.
+Admin-Panel: `http://localhost:8080/admin`
+
+### 2 – Flutter App
+
+Flutter 3.x SDK erforderlich → https://flutter.dev/docs/get-started/install
+
+```bash
+# Repo-Root
+
+# Einmalig: Platform-Verzeichnisse (android/ ios/ web/) generieren
+flutter create --org com.yourname --project-name family_hub .
+
+# Dart-Pakete installieren
+flutter pub get
+
+# App starten (Gerät oder Emulator muss verbunden sein)
+flutter run
+```
+
+Beim ersten Start erscheint ein **Server-URL**-Eingabefeld.
+Trage dort deine Backend-URL ein (`http://192.168.1.x:8080` lokal oder `https://deine-domain.com`).
+
+### 3 – Plugins konfigurieren
+
+`http://localhost:8080/admin` öffnen, mit Admin-Zugangsdaten einloggen,
+dann Plugins aktivieren und API-Keys eintragen (Sonarr, Immich, Jellyseerr, …).
 
 ---
 
-## Widget System
+## Required vs. Optional Services
 
-Each widget is a self-contained Flutter widget registered in `widget_defs`:
+| Service | Zweck | Pflicht |
+|---------|-------|:-------:|
+| Family Hub Backend | API + Auth | ✅ |
+| Jellyfin | Streams, Recently Added | ✅ für Media-Widgets |
+| TMDB API | Film/Serien-Metadaten | empfohlen |
+| Ollama | KI-Zusammenfassungen (Newsletter) | optional |
+| n8n | Wöchentlicher Newsletter-Cron | optional |
 
-```dart
-// Adding a custom widget:
-// 1. Create lib/screens/home/widgets/my_widget.dart
-// 2. Register in widget_editor_sheet.dart:
-'my_widget': {'label': 'My Widget', 'icon': '🔧', 'size': WidgetSize.small},
-// 3. Add to switch in home_screen.dart:
-'my_widget' => const MyWidget(),
-```
+Alle anderen Services (Sonarr, Radarr, Proxmox, Immich, Nextcloud …) werden
+ausschließlich über das Admin-Plugin-System konfiguriert – kein Code nötig.
 
 ---
 
-## Plugin System (Backend)
+## Plugin System
+
+Auto-Discovery: Alle Dateien in `backend/plugins/` die `BasePlugin` erweitern
+werden beim Start automatisch erkannt und im Admin-Panel angezeigt.
+
+### Eingebaute Plugins
+
+| Plugin | Stats | Newsletter |
+|--------|-------|:----------:|
+| Sonarr | missing / upcoming episodes | ✅ |
+| Radarr | missing / total movies | ✅ |
+| Proxmox | CPU %, RAM, VMs, LXC | – |
+| Jellyseerr | pending / approved requests | ✅ |
+| Uptime Kuma | up/down count, uptime % | ✅ (nur bei Ausfall) |
+| Immich | Fotos / Videos, Storage GB | ✅ |
+| Navidrome | Künstler, Now Playing | ✅ |
+| Nextcloud | Dateien, Nutzer, Storage | – |
+| n8n | Workflows, Executions | – |
+| Gitea | Repos, Stars, Issues | ✅ |
+| Portainer | Container running / stopped | – |
+| Paperless-ngx | Dokumente, Inbox | ✅ |
+| Audiobookshelf | Bücher, Podcasts, In-Progress | ✅ |
+
+### Eigenes Plugin schreiben
+
+`backend/plugins/my_plugin.py` erstellen:
 
 ```python
-# backend/plugins/my_plugin.py
-class MyPlugin(BasePlugin):
-    name = "my_service"
-    config_schema = {"url": str, "api_key": str}
+import httpx
+from base_plugin import BasePlugin
 
-    def get_stats(self) -> dict: ...
-    def get_newsletter_block(self) -> NewsletterBlock: ...
+class MyPlugin(BasePlugin):
+    name        = "my_service"     # eindeutige snake_case ID
+    label       = "My Service"
+    description = "Kurzbeschreibung für Admin-UI"
+    icon        = "🔧"
+    version     = "1.0.0"
+
+    config_schema = {
+        "url": {
+            "type": "url", "label": "Service URL",
+            "placeholder": "http://192.168.1.10:1234",
+            "required": True,
+        },
+        "api_key": {
+            "type": "password", "label": "API Key",
+            "required": True, "secret": True,   # wird in UI/API maskiert
+        },
+    }
+
+    async def test(self) -> dict:
+        # {"ok": True, "message": "..."} oder {"ok": False, "message": "..."}
+        ...
+
+    async def get_stats(self) -> dict:
+        # Flaches Dict – Keys erscheinen in /api/stats
+        return {"my_service_count": 42}
+
+    async def get_newsletter_block(self) -> dict | None:
+        # {"title": "...", "items": [{"title": "...", "subtitle": "..."}]}
+        # oder None um Block zu überspringen
+        return None
 ```
 
----
-
-## Roadmap
-
-- [ ] v2.1 – Live TMDB posters in app
-- [ ] v2.2 – Jellyfin watch history per user
-- [ ] v2.5 – Sonarr/Radarr calendar widget
-- [ ] v2.5 – Immich recent photos widget
-- [ ] v3.0 – App Store release
+Backend neu starten → Plugin erscheint automatisch in `/admin`.
 
 ---
 
-## Credits
+## Umgebungsvariablen
 
-Built by Constantin Trapp · Self-hosted on Proxmox VE
-Powered by Jellyfin, n8n, Ollama, TMDB
+Alle Variablen mit Erklärung stehen in `backend/.env.example`.
+
+| Variable | Beschreibung | Pflicht |
+|----------|-------------|:-------:|
+| `SECRET_KEY` | JWT-Signing-Key (`openssl rand -hex 32`) | ✅ |
+| `JELLYFIN_URL` | Jellyfin-Basis-URL | für Media-Widgets |
+| `JELLYFIN_TOKEN` | Jellyfin API-Token | für Media-Widgets |
+| `TMDB_API_KEY` | TMDB API-Key (kostenlos) | empfohlen |
+| `OLLAMA_URL` | Ollama-Basis-URL | Newsletter-KI |
+| `VAPID_PRIVATE_KEY` | VAPID Private Key | Push Notifications |
+| `VAPID_PUBLIC_KEY` | VAPID Public Key | Push Notifications |
+| `VAPID_EMAIL` | Kontakt-E-Mail für VAPID | Push Notifications |
+
+Alle anderen Services → Admin-Plugin-UI, keine Env-Vars nötig.
+
+---
+
+## VAPID-Keys generieren
+
+```bash
+cd backend && source venv/bin/activate
+python -c "
+from pywebpush import Vapid
+v = Vapid()
+v.generate_keys()
+print('Schlüssel in vapid_keys.json gespeichert')
+v.save_files()
+"
+```
+
+Der Backend lädt `vapid_keys.json` automatisch wenn keine Env-Vars gesetzt sind.
+
+---
+
+## Cloudflare Tunnel (optional, für HTTPS)
+
+```yaml
+# ~/.cloudflared/config.yml
+ingress:
+  - hostname: hub.deine-domain.com
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+HTTPS ist für Web Push Notifications auf mobilen Browsern Pflicht.
+
+---
+
+## Authentik OIDC Setup
+
+### 1 – Authentik Application anlegen
+```
+Authentik Admin → Applications → Create
+  Name:     Family Hub
+  Provider: (neu erstellen, s.u.)
+```
+
+### 2 – OAuth2/OIDC Provider
+```
+Providers → Create → OAuth2/OpenID Provider
+  Name:           Family Hub
+  Client type:    Confidential
+  Client ID:      family-hub         ← AUTHENTIK_CLIENT_ID
+  Client Secret:  (generiert)        ← AUTHENTIK_CLIENT_SECRET
+  Redirect URI:   https://hub.example.com/api/auth/oidc/callback
+  Scopes:         openid email profile
+```
+
+### 3 – .env setzen
+```bash
+AUTHENTIK_URL=https://auth.example.com
+AUTHENTIK_CLIENT_ID=family-hub
+AUTHENTIK_CLIENT_SECRET=<generated>
+BACKEND_URL=https://hub.example.com   # für redirect_uri
+```
+
+### 4 – Flutter Deep Link (nach flutter create .)
+
+**Android** – `android/app/src/main/AndroidManifest.xml` in `<activity>`:
+```xml
+<intent-filter>
+  <action android:name="android.intent.action.VIEW"/>
+  <category android:name="android.intent.category.DEFAULT"/>
+  <category android:name="android.intent.category.BROWSABLE"/>
+  <data android:scheme="hubstinger" android:host="auth"/>
+</intent-filter>
+```
+
+**iOS** – `ios/Runner/Info.plist`:
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array><string>hubstinger</string></array>
+  </dict>
+</array>
+```
+
+Nach diesen Änderungen erscheint der **"Mit Authentik anmelden"**-Button automatisch
+im Login-Screen, sobald OIDC im Backend konfiguriert ist.
+
+---
+
+## Sicherheitshinweise (Produktion)
+
+| Einstellung | Empfehlung |
+|-------------|-----------|
+| `SECRET_KEY` | `openssl rand -hex 32` – Backend startet nicht ohne diesen Wert |
+| `CORS_ORIGINS` | Auf deine Domain einschränken, kein `*` |
+| `ENABLE_DOCS` | `false` (Standard) – kein Swagger-UI in Produktion |
+| HTTPS | Pflicht für Push & OIDC – Cloudflare Tunnel oder NPM |
+| Login-Rate-Limit | Eingebaut: 10 Versuche/Minute pro IP |
+
+---
+
+## Native Push Notifications (Firebase / FCM)
+
+Für native Push auf iOS/Android ist Firebase erforderlich:
+
+1. Firebase-Projekt unter console.firebase.google.com erstellen
+2. Android-App hinzufügen → `google-services.json` → `android/app/` ablegen
+3. iOS-App hinzufügen → `GoogleService-Info.plist` → `ios/Runner/` ablegen
+4. In `pubspec.yaml` ergänzen:
+   ```yaml
+   firebase_core: ^2.27.0
+   firebase_messaging: ^14.7.0
+   ```
+5. `PushService.instance.registerFcmToken(token)` mit FCM-Token aufrufen
+
+Ohne Firebase sendet das Backend weiterhin Web Push via VAPID an Browser-Subscriber.

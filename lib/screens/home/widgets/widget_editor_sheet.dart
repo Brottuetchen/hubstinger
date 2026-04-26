@@ -15,6 +15,10 @@ const Map<String, Map<String, dynamic>> widgetDefs = {
   'nas':           {'label': 'NAS Speicher',      'icon': '💾', 'size': WidgetSize.small},
   'proxmox':       {'label': 'Proxmox CPU',       'icon': '🖥️', 'size': WidgetSize.small},
   'requests':      {'label': 'Jellyseerr',        'icon': '🎥', 'size': WidgetSize.small},
+  'sonarr':        {'label': 'Sonarr Upcoming',   'icon': '📺', 'size': WidgetSize.small},
+  'radarr':        {'label': 'Radarr Missing',    'icon': '🎬', 'size': WidgetSize.small},
+  'immich':        {'label': 'Immich Fotos',      'icon': '📷', 'size': WidgetSize.small},
+  'navidrome':     {'label': 'Navidrome',         'icon': '🎵', 'size': WidgetSize.small},
 };
 
 class WidgetEditorSheet extends StatelessWidget {

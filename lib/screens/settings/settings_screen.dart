@@ -1,18 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/colors.dart';
+import '../../providers/providers.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/glass/glass_card.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
-  @override State<SettingsScreen> createState() => _SettingsScreenState();
+  @override ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _notifs = {'newsletter':true,'media':true,'alerts':false,'watchtime':false};
   final _integrations = [
     ('Jellyfin','🎬',true),('Jellyseerr','🎥',true),('n8n','⚡',true),
     ('Ollama','🤖',true),('TMDB','🎭',true),('Uptime Kuma','✅',true),
   ];
+
+  late final TextEditingController _urlCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlCtrl = TextEditingController();
+    _loadUrl();
+  }
+
+  Future<void> _loadUrl() async {
+    final url = await AuthService.instance.getBaseUrl();
+    if (mounted) _urlCtrl.text = url;
+  }
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    super.dispose();
+  }
 
   Widget _section(String title, Widget child) => Padding(
     padding: const EdgeInsets.only(bottom:12),
@@ -52,8 +76,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child:Container(width:18,height:18,decoration:BoxDecoration(shape:BoxShape.circle,color:Colors.white,boxShadow:[BoxShadow(color:Colors.black.withOpacity(0.3),blurRadius:6)]))),
       ])));
 
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF12141F),
+        title: const Text('Abmelden?'),
+        content: const Text('Du wirst aus Family Hub abgemeldet.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Abmelden', style: TextStyle(color: AppColors.rose))),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      await ref.read(authProvider.notifier).logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    final fullName = user?['full_name'] as String? ?? user?['username'] as String? ?? '–';
+    final email = user?['email'] as String? ?? '';
+    final isAdmin = user?['is_admin'] as bool? ?? false;
+    final avatarChar = fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
+
     return SafeArea(child:ListView(padding:const EdgeInsets.fromLTRB(14,16,14,100),children:[
       const Text('Einstellungen',style:TextStyle(fontSize:30,fontWeight:FontWeight.w800,letterSpacing:-1)),
       const SizedBox(height:16),
@@ -63,20 +115,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child:Row(children:[
           Container(width:56,height:56,decoration:BoxDecoration(shape:BoxShape.circle,gradient:LinearGradient(colors:[AppColors.violet,AppColors.cyan]),
             boxShadow:[BoxShadow(color:AppColors.violet.withOpacity(0.5),blurRadius:24)]),
-            child:const Center(child:Text('C',style:TextStyle(fontSize:24,fontWeight:FontWeight.w800)))),
+            child:Center(child:Text(avatarChar,style:const TextStyle(fontSize:24,fontWeight:FontWeight.w800)))),
           const SizedBox(width:14),
-          Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            const Text('Constantin Trapp',style:TextStyle(fontWeight:FontWeight.w700,fontSize:17)),
-            const Text('c.trapp@t-acc.com',style:TextStyle(fontSize:12,color:Colors.white40)),
+          Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(fullName,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:17)),
+            if(email.isNotEmpty) Text(email,style:const TextStyle(fontSize:12,color:Colors.white40)),
             const SizedBox(height:7),
-            GlassCard(borderRadius:8,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:10,vertical:3),
+            if(isAdmin) GlassCard(borderRadius:8,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:10,vertical:3),
               child:Text('Admin',style:TextStyle(fontSize:10,color:AppColors.violet.withOpacity(0.9),letterSpacing:0.8,fontWeight:FontWeight.w700))),
-          ]),
+          ])),
+          // Logout button
+          GlassCard(
+            borderRadius: 12,
+            weight: GlassWeight.thin,
+            onTap: _confirmLogout,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text('Abmelden', style: TextStyle(fontSize: 12, color: AppColors.rose, fontWeight: FontWeight.w600)),
+          ),
         ])),
       const SizedBox(height:12),
       _section('Server',Column(children:[
-        _row('Server URL','hub.t-acc.com',Row(children:[StatusDot(online:true),const SizedBox(width:6),const Text('Online',style:TextStyle(fontSize:11,color:Colors.white38))])),
-        _row('TMDB API','Für Filminfos & Poster',GlassCard(borderRadius:10,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),child:const Text('Aktiv',style:TextStyle(fontSize:11,color:Colors.white50))),last:true),
+        _row('Server URL','',
+          Expanded(child: TextField(
+            controller: _urlCtrl,
+            style: const TextStyle(fontSize: 12, color: Colors.white60),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              hintText: 'https://your-server.com',
+              hintStyle: TextStyle(color: Colors.white20, fontSize: 12),
+            ),
+            onSubmitted: (url) => AuthService.instance.saveBaseUrl(url),
+            onEditingComplete: () => AuthService.instance.saveBaseUrl(_urlCtrl.text),
+          )),
+        ),
+        _row('Verbindung','', Row(children:[StatusDot(online:true),const SizedBox(width:6),const Text('Online',style:TextStyle(fontSize:11,color:Colors.white38))]),last:true),
       ])),
       _section('Benachrichtigungen',Column(children:[
         _row('Newsletter','Neue Ausgaben via n8n',_toggle(_notifs['newsletter']!,()=>setState(()=>_notifs['newsletter']=!_notifs['newsletter']!))),
@@ -88,6 +161,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final i=e.key; final s=e.value;
         return _row(s.$1,'',Row(children:[StatusDot(online:s.$3),const SizedBox(width:6),Text(s.$3?'Verbunden':'Offline',style:const TextStyle(fontSize:11,color:Colors.white38))]),last:i==_integrations.length-1);
       }).toList())),
+      if (isAdmin)
+        _section('Backend Verwaltung', Column(children: [
+          _row(
+            'Plugin Manager',
+            'Plugins konfigurieren & aktivieren',
+            GlassCard(
+              borderRadius: 10,
+              weight: GlassWeight.thin,
+              onTap: () async {
+                final base = await AuthService.instance.getBaseUrl();
+                final uri = Uri.parse('$base/admin');
+                if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              child: Text('Öffnen ›', style: TextStyle(fontSize: 11, color: AppColors.violet)),
+            ),
+            last: true,
+          ),
+        ])),
       _section('App',Column(children:[
         _row('Version','Family Hub v2.0',const Text('Aktuell',style:TextStyle(fontSize:12,color:Colors.white30))),
         _row('Flutter Build','iOS & Android',GlassCard(borderRadius:10,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),child:const Text('Build ›',style:TextStyle(fontSize:11,color:Colors.white50))),last:true),

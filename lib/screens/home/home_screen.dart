@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../core/constants/colors.dart';
 import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../../widgets/glass/glass_card.dart';
 import 'widgets/streaming_widget.dart';
 import 'widgets/newsletter_widget.dart';
@@ -22,21 +26,51 @@ const List<WidgetSlot> _defaultLayout = [
   WidgetSlot(id: 'nas',            size: WidgetSize.small),
 ];
 
-class HomeScreen extends StatefulWidget {
+const _kLayoutKey = 'home_widget_layout';
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<WidgetSlot> _layout = List.from(_defaultLayout);
   bool _editing = false;
+  bool _layoutLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLayout();
+  }
+
+  Future<void> _loadLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kLayoutKey);
+    if (raw != null) {
+      try {
+        final list = (jsonDecode(raw) as List)
+            .map((e) => WidgetSlot.fromJson(e as Map<String, dynamic>))
+            .toList();
+        if (mounted) setState(() { _layout = list; _layoutLoaded = true; });
+        return;
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _layoutLoaded = true);
+  }
+
+  Future<void> _saveLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLayoutKey, jsonEncode(_layout.map((s) => s.toJson()).toList()));
+  }
 
   void _toggleEdit() => setState(() => _editing = !_editing);
 
   void _removeWidget(int index) {
     setState(() => _layout.removeAt(index));
+    _saveLayout();
   }
 
   void _moveUp(int index) {
@@ -46,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _layout[index] = _layout[index - 1];
       _layout[index - 1] = tmp;
     });
+    _saveLayout();
   }
 
   void _moveDown(int index) {
@@ -55,10 +90,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _layout[index] = _layout[index + 1];
       _layout[index + 1] = tmp;
     });
+    _saveLayout();
   }
 
   void _addWidget(WidgetSlot slot) {
     setState(() => _layout.add(slot));
+    _saveLayout();
   }
 
   void _showAddSheet() {
@@ -82,9 +119,21 @@ class _HomeScreenState extends State<HomeScreen> {
         : _buildPhoneLayout();
   }
 
+  Future<void> _refresh() async {
+    ref.invalidate(sessionsProvider);
+    ref.invalidate(recentlyAddedProvider);
+    ref.invalidate(statsProvider);
+    // Let providers settle
+    await Future.delayed(const Duration(milliseconds: 400));
+  }
+
   // ── Phone Layout ────────────────────────────────────────────────────────────
   Widget _buildPhoneLayout() {
-    return CustomScrollView(
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      color: AppColors.violet,
+      backgroundColor: const Color(0xFF12141F),
+      child: CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
         SliverPadding(
@@ -115,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
-    );
+    ));
   }
 
   // ── iPad Layout ─────────────────────────────────────────────────────────────
@@ -167,6 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSidebarHeader() {
+    final user     = ref.watch(authProvider).user;
+    final name     = user?['full_name'] as String? ?? user?['username'] as String? ?? '–';
+    final isAdmin  = user?['is_admin'] as bool? ?? false;
+    final avatar   = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -179,16 +232,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 colors: [AppColors.violet, AppColors.cyan],
               ),
             ),
-            child: const Center(
-              child: Text('C', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            child: Center(
+              child: Text(avatar, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             ),
           ),
           const SizedBox(width: 12),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Constantin', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              Text('Admin', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              Text(isAdmin ? 'Admin' : 'User', style: const TextStyle(color: Colors.white38, fontSize: 12)),
             ],
           ),
         ],
@@ -203,21 +256,34 @@ class _HomeScreenState extends State<HomeScreen> {
       ('✉', 'Newsletter'),
       ('⚙', 'Einstellungen'),
     ];
-    return items.map((item) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: GlassCard(
-        borderRadius: 14,
-        weight: GlassWeight.thin,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Text(item.$1, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 12),
-            Text(item.$2, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          ],
+    final currentTab = ref.watch(tabIndexProvider);
+    return items.asMap().entries.map((entry) {
+      final i = entry.key;
+      final item = entry.value;
+      final active = currentTab == i;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: GlassCard(
+          borderRadius: 14,
+          weight: active ? GlassWeight.mid : GlassWeight.thin,
+          rimColor: active ? AppColors.violet.withOpacity(0.4) : null,
+          tint: active ? AppColors.violet.withOpacity(0.12) : null,
+          onTap: () => ref.read(tabIndexProvider.notifier).state = i,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Text(item.$1, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 12),
+              Text(item.$2, style: TextStyle(
+                fontSize: 14,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active ? Colors.white : Colors.white70,
+              )),
+            ],
+          ),
         ),
-      ),
-    )).toList();
+      );
+    }).toList();
   }
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -259,8 +325,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Text('Constantin',
-                          style: TextStyle(fontSize: 13, color: Colors.white38),
+                        Text(
+                          ref.watch(authProvider).user?['full_name'] as String?
+                              ?? ref.watch(authProvider).user?['username'] as String?
+                              ?? 'Family Hub',
+                          style: const TextStyle(fontSize: 13, color: Colors.white38),
                         ),
                         if (_editing) ...[
                           const SizedBox(width: 8),
@@ -402,12 +471,46 @@ class _HomeScreenState extends State<HomeScreen> {
       'newsletter'    => const NewsletterWidget(),
       'recently'      => const RecentlyWidget(),
       'watchtime'     => const WatchtimeWidget(),
-      'containers'    => const StatWidget(emoji: '🐳', value: '23', label: 'Container', sub: 'Proxmox', color: AppColors.violet),
-      'streams_count' => const StatWidget(emoji: '▶️', value: '2',  label: 'Streams',   sub: 'Aktiv',   color: AppColors.cyan),
-      'uptime'        => const StatWidget(emoji: '✅', value: '99.8%', label: 'Uptime', sub: '23 Services', color: AppColors.green),
-      'nas'           => const StatWidget(emoji: '💾', value: '4.1TB', label: 'NAS frei', sub: '44% belegt', color: AppColors.amber),
-      'proxmox'       => const StatWidget(emoji: '🖥️', value: '23%', label: 'CPU', sub: 'Ryzen 9 7900X3D', color: AppColors.orange),
-      'requests'      => const StatWidget(emoji: '🎥', value: '3', label: 'Requests', sub: 'Jellyseerr', color: AppColors.rose),
+      'containers'    => LiveStatWidget(emoji: '🐳', label: 'Container',
+                           statsKey: 'portainer_running',
+                           sub: 'Laufend', color: AppColors.violet,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'streams_count' => LiveStatWidget(emoji: '▶️', label: 'Streams',
+                           statsKey: 'active_streams',
+                           sub: 'Aktiv', color: AppColors.cyan,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'uptime'        => LiveStatWidget(emoji: '✅', label: 'Uptime',
+                           statsKey: 'uptime_kuma_pct',
+                           sub: 'Services', color: AppColors.green,
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(1)}%' : '–'),
+      'nas'           => LiveStatWidget(emoji: '💾', label: 'NAS frei',
+                           statsKey: 'nextcloud_used_gb',
+                           sub: 'Nextcloud', color: AppColors.amber,
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(1)} GB' : '–'),
+      'proxmox'       => LiveStatWidget(emoji: '🖥️', label: 'CPU',
+                           statsKey: 'proxmox_cpu_pct',
+                           sub: 'Proxmox', color: AppColors.orange,
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(0)}%' : '–'),
+      'requests'      => LiveStatWidget(emoji: '🎥', label: 'Anfragen',
+                           statsKey: 'jellyseerr_pending',
+                           sub: 'Jellyseerr', color: AppColors.rose,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'sonarr'        => LiveStatWidget(emoji: '📺', label: 'Upcoming',
+                           statsKey: 'sonarr_upcoming',
+                           sub: 'Sonarr', color: AppColors.cyan,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'radarr'        => LiveStatWidget(emoji: '🎬', label: 'Fehlend',
+                           statsKey: 'radarr_missing',
+                           sub: 'Radarr', color: AppColors.amber,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'immich'        => LiveStatWidget(emoji: '📷', label: 'Fotos',
+                           statsKey: 'immich_photos',
+                           sub: 'Immich', color: AppColors.green,
+                           formatter: (v) => v != null ? _formatCount(v as int) : '–'),
+      'navidrome'     => LiveStatWidget(emoji: '🎵', label: 'Künstler',
+                           statsKey: 'navidrome_artists',
+                           sub: 'Navidrome', color: AppColors.violet,
+                           formatter: (v) => v?.toString() ?? '–'),
       _ => const SizedBox(),
     };
 
@@ -464,6 +567,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  String _formatCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 
   Widget _buildAddButton() {

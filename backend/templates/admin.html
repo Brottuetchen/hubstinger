@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Family Hub · Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #02030c;
+    --surface:  rgba(255,255,255,0.07);
+    --surface2: rgba(255,255,255,0.10);
+    --border:   rgba(255,255,255,0.14);
+    --violet:   #7c3aed;
+    --cyan:     #00b4d8;
+    --green:    #10b981;
+    --amber:    #f59e0b;
+    --rose:     #ec4899;
+    --text:     rgba(255,255,255,0.88);
+    --muted:    rgba(255,255,255,0.38);
+    --radius:   20px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── orbs ── */
+  .orb {
+    position: fixed; border-radius: 50%; pointer-events: none; filter: blur(80px); opacity: .55; z-index: 0;
+  }
+  .orb1 { width: 600px; height: 600px; top: -200px; left: -200px; background: radial-gradient(circle, #180b60, transparent 70%); }
+  .orb2 { width: 400px; height: 400px; bottom: -100px; right: -100px; background: radial-gradient(circle, #0b3560, transparent 70%); }
+
+  /* ── layout ── */
+  .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  /* ── header ── */
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; }
+  .logo  { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--violet), var(--cyan));
+           display: flex; align-items: center; justify-content: center; font-size: 22px;
+           box-shadow: 0 0 32px rgba(124,58,237,.5); }
+  header h1 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+  .user-pill { margin-left: auto; background: var(--surface); border: 1px solid var(--border);
+               border-radius: 20px; padding: 6px 16px; font-size: 13px; color: var(--muted); }
+
+  /* ── login ── */
+  #login-view { display: flex; justify-content: center; padding: 80px 20px; }
+  .login-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 36px; width: 100%; max-width: 380px; backdrop-filter: blur(40px);
+  }
+  .login-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 24px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .5px; text-transform: uppercase; }
+  .field input {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; color: var(--text); font-size: 14px; outline: none;
+    transition: border-color .2s;
+  }
+  .field input:focus { border-color: var(--violet); }
+  .err { color: var(--rose); font-size: 13px; margin-bottom: 12px; display: none; }
+
+  /* ── buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;
+    border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: none; transition: opacity .15s, transform .1s; text-decoration: none;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: linear-gradient(135deg, var(--violet), #5b21b6); color: white; width: 100%; justify-content: center; padding: 13px; font-size: 15px; }
+  .btn-ghost   { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .btn-danger  { background: rgba(236,72,153,.15); border: 1px solid rgba(236,72,153,.35); color: var(--rose); }
+  .btn-success { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.35); color: var(--green); }
+  .btn-sm      { padding: 6px 14px; font-size: 12px; border-radius: 9px; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .loading { opacity: .6; }
+
+  /* ── section title ── */
+  .section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+
+  /* ── plugin grid ── */
+  .plugin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+
+  .plugin-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+    backdrop-filter: blur(36px); transition: border-color .2s;
+  }
+  .plugin-card.enabled { border-color: rgba(124,58,237,.45); }
+
+  .card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .card-icon { font-size: 28px; line-height: 1; flex-shrink: 0; }
+  .card-meta { flex: 1; min-width: 0; }
+  .card-meta h3 { font-size: 15px; font-weight: 700; }
+  .card-meta p  { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .card-version { font-size: 10px; color: rgba(255,255,255,.22); margin-top: 3px; }
+
+  .card-status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-on  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot-off { background: rgba(255,255,255,.18); }
+  .dot-warn{ background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .status-text { font-size: 12px; color: var(--muted); }
+  .badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 8px;
+    border-radius: 6px; text-transform: uppercase;
+  }
+  .badge-on   { background: rgba(16,185,129,.2); color: var(--green); border: 1px solid rgba(16,185,129,.35); }
+  .badge-off  { background: rgba(255,255,255,.06); color: var(--muted); border: 1px solid var(--border); }
+  .badge-warn { background: rgba(245,158,11,.2); color: var(--amber); border: 1px solid rgba(245,158,11,.35); }
+
+  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── toggle switch ── */
+  .toggle { position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; border-radius: 12px;
+    background: rgba(255,255,255,.12); border: 1px solid var(--border);
+    transition: background .25s;
+  }
+  .slider::before {
+    content: ''; position: absolute; height: 18px; width: 18px; top: 2px; left: 2px;
+    border-radius: 50%; background: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    transition: transform .25s;
+  }
+  input:checked + .slider { background: linear-gradient(135deg, var(--violet), var(--cyan)); border-color: var(--violet); }
+  input:checked + .slider::before { transform: translateX(20px); }
+
+  /* ── modal ── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(6px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #0d0f1e; border: 1px solid var(--border); border-radius: 24px;
+    padding: 28px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 40px 80px rgba(0,0,0,.8);
+    animation: slideUp .2s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .modal-icon   { font-size: 28px; }
+  .modal-header h2 { font-size: 18px; font-weight: 700; }
+  .modal-close  { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 4px; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-footer { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; flex-wrap: wrap; }
+  .test-result  { font-size: 13px; padding: 10px 14px; border-radius: 10px; margin-top: 16px; display: none; }
+  .test-ok   { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.3); color: var(--green); }
+  .test-fail { background: rgba(236,72,153,.12); border: 1px solid rgba(236,72,153,.3); color: var(--rose); }
+
+  /* ── hint ── */
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── empty state ── */
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty big { display: block; font-size: 40px; margin-bottom: 12px; }
+
+  /* ── toast ── */
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: rgba(16,185,129,.9); color: white; padding: 10px 22px;
+    border-radius: 20px; font-size: 13px; font-weight: 600;
+    opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 200;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<!-- ── Login ──────────────────────────────────────────────────────────────── -->
+<div id="login-view">
+  <div class="login-card">
+    <div style="text-align:center;margin-bottom:28px">
+      <div class="logo" style="margin:0 auto 16px">⌂</div>
+      <h2 style="font-size:22px;letter-spacing:-.5px">Family Hub Admin</h2>
+      <p style="font-size:13px;color:var(--muted);margin-top:4px">Bitte mit Admin-Konto anmelden</p>
+    </div>
+    <p class="err" id="login-err">Falscher Benutzername oder Passwort</p>
+    <div class="field">
+      <label>Benutzername</label>
+      <input type="text" id="login-user" autocomplete="username" placeholder="admin">
+    </div>
+    <div class="field">
+      <label>Passwort</label>
+      <input type="password" id="login-pw" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Anmelden</button>
+  </div>
+</div>
+
+<!-- ── Main app ───────────────────────────────────────────────────────────── -->
+<div id="app-view" style="display:none">
+  <div class="wrap">
+    <header>
+      <div class="logo">⌂</div>
+      <div>
+        <h1>Family Hub <span>Admin</span></h1>
+      </div>
+      <div class="user-pill" id="user-pill">–</div>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Abmelden</button>
+    </header>
+
+    <p class="section-title">Installierte Plugins</p>
+    <div class="plugin-grid" id="plugin-grid">
+      <div class="empty"><big>⏳</big>Plugins werden geladen…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Config Modal ───────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modal" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-icon" id="m-icon"></span>
+      <h2 id="m-title"></h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="m-fields"></div>
+    <div class="test-result" id="test-result"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="m-test" onclick="testPlugin()">🔌 Verbindung testen</button>
+      <button class="btn btn-primary" onclick="saveConfig()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';  // same origin
+let token = localStorage.getItem('fh_token');
+let plugins = [];
+let activePlugin = null;
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pw   = document.getElementById('login-pw').value;
+  const btn  = document.getElementById('login-btn');
+  const err  = document.getElementById('login-err');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Anmelden…';
+  try {
+    const r = await fetch(`${API}/api/auth/token`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: `username=${encodeURIComponent(user)}&password=${encodeURIComponent(pw)}`
+    });
+    if (!r.ok) throw new Error('Unauthorized');
+    const d = await r.json();
+    token = d.access_token;
+    localStorage.setItem('fh_token', token);
+    const me = await apiFetch('/api/auth/me');
+    if (!me.is_admin) {
+      token = null; localStorage.removeItem('fh_token');
+      err.textContent = 'Kein Admin-Zugriff'; err.style.display = 'block';
+      return;
+    }
+    document.getElementById('user-pill').textContent = me.full_name || me.username;
+    showApp();
+  } catch(e) {
+    err.textContent = 'Falscher Benutzername oder Passwort';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Anmelden';
+  }
+}
+
+function logout() {
+  token = null; localStorage.removeItem('fh_token');
+  document.getElementById('app-view').style.display = 'none';
+  document.getElementById('login-view').style.display = 'flex';
+}
+
+async function apiFetch(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (r.status === 401) { logout(); throw new Error('Unauthorized'); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function showApp() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('app-view').style.display = 'block';
+  await loadPlugins();
+}
+
+// ── Plugins ───────────────────────────────────────────────────────────────────
+
+async function loadPlugins() {
+  try {
+    plugins = await apiFetch('/api/plugins');
+    renderPlugins();
+  } catch(e) {
+    document.getElementById('plugin-grid').innerHTML =
+      `<div class="empty"><big>⚠️</big>${e.message}</div>`;
+  }
+}
+
+function renderPlugins() {
+  const grid = document.getElementById('plugin-grid');
+  if (!plugins.length) {
+    grid.innerHTML = '<div class="empty"><big>🔌</big>Keine Plugins gefunden.<br><small>Lege eine Datei in backend/plugins/ an.</small></div>';
+    return;
+  }
+  grid.innerHTML = plugins.map(p => {
+    const on     = p.enabled;
+    const cfg    = p.configured;
+    const status = on && cfg ? 'on' : on && !cfg ? 'warn' : 'off';
+    const statusLabel = on && cfg ? 'Aktiv' : on && !cfg ? 'Nicht konfiguriert' : 'Inaktiv';
+    return `
+    <div class="plugin-card ${on ? 'enabled' : ''}" id="card-${p.name}">
+      <div class="card-header">
+        <div class="card-icon">${p.icon}</div>
+        <div class="card-meta">
+          <h3>${p.label}</h3>
+          <p>${p.description}</p>
+          <p class="card-version">v${p.version}</p>
+        </div>
+        <label class="toggle" title="${on ? 'Deaktivieren' : 'Aktivieren'}">
+          <input type="checkbox" ${on ? 'checked' : ''} onchange="togglePlugin('${p.name}', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="card-status">
+        <div class="dot dot-${status}"></div>
+        <span class="status-text">${statusLabel}</span>
+        <span class="badge badge-${status === 'on' ? 'on' : status === 'warn' ? 'warn' : 'off'}">${statusLabel}</span>
+      </div>
+      <div class="card-actions">
+        ${Object.keys(p.config_schema).length > 0
+          ? `<button class="btn btn-ghost btn-sm" onclick="openModal('${p.name}')">⚙ Konfigurieren</button>`
+          : '<span style="font-size:12px;color:var(--muted)">Keine Konfiguration nötig</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function togglePlugin(name, enabled) {
+  try {
+    await apiFetch(`/api/plugins/${name}/toggle`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled })
+    });
+    const p = plugins.find(x => x.name === name);
+    if (p) p.enabled = enabled;
+    renderPlugins();
+    toast(enabled ? `${name} aktiviert` : `${name} deaktiviert`);
+  } catch(e) {
+    toast('Fehler: ' + e.message, true);
+    await loadPlugins();
+  }
+}
+
+// ── Config Modal ──────────────────────────────────────────────────────────────
+
+function openModal(name) {
+  const p = plugins.find(x => x.name === name);
+  if (!p) return;
+  activePlugin = p;
+
+  document.getElementById('m-icon').textContent  = p.icon;
+  document.getElementById('m-title').textContent = `${p.label} konfigurieren`;
+  document.getElementById('test-result').style.display = 'none';
+
+  const fields = document.getElementById('m-fields');
+  fields.innerHTML = Object.entries(p.config_schema).map(([key, schema]) => {
+    const val  = p.config?.[key] || '';
+    const type = schema.type === 'password' ? 'password' : schema.type === 'number' ? 'number' : schema.type === 'url' ? 'url' : 'text';
+    if (schema.type === 'select') {
+      const opts = (schema.options || []).map(o =>
+        `<option value="${o.value}" ${val === o.value ? 'selected' : ''}>${o.label}</option>`
+      ).join('');
+      return `
+        <div class="field">
+          <label>${schema.label}${schema.required ? ' <span style="color:var(--rose)">*</span>' : ''}</label>
+          <select id="cfg-${key}" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;appearance:none">
+            ${opts}
+          </select>
+          ${schema.hint ? `<p class="hint">${schema.hint}</p>` : ''}
+        </div>`;
+    }
+    return `
+      <div class="field">
+        <label>${schema.label}${schema.required ? ' <span style="color:var(--rose)">*</span>' : ''}</label>
+        <input id="cfg-${key}" type="${type}" value="${escHtml(val)}" placeholder="${escHtml(schema.placeholder || '')}">
+        ${schema.hint ? `<p class="hint">${schema.hint}</p>` : ''}
+      </div>`;
+  }).join('');
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal')) return;
+  document.getElementById('modal').classList.remove('open');
+  activePlugin = null;
+}
+
+async function saveConfig() {
+  if (!activePlugin) return;
+  const config = {};
+  Object.keys(activePlugin.config_schema).forEach(key => {
+    const el = document.getElementById(`cfg-${key}`);
+    if (el) config[key] = el.value;
+  });
+  try {
+    await apiFetch(`/api/plugins/${activePlugin.name}/config`, {
+      method: 'PUT', body: JSON.stringify(config)
+    });
+    activePlugin.config     = config;
+    activePlugin.configured = true;
+    const p = plugins.find(x => x.name === activePlugin.name);
+    if (p) { p.config = config; p.configured = true; }
+    renderPlugins();
+    document.getElementById('modal').classList.remove('open');
+    activePlugin = null;
+    toast('Konfiguration gespeichert ✓');
+  } catch(e) {
+    toast('Fehler: ' + e.message, true);
+  }
+}
+
+async function testPlugin() {
+  if (!activePlugin) return;
+  const btn = document.getElementById('m-test');
+  const res = document.getElementById('test-result');
+  btn.disabled = true; btn.textContent = '⏳ Teste…';
+  res.style.display = 'none';
+  try {
+    const r = await apiFetch(`/api/plugins/${activePlugin.name}/test`, { method: 'POST' });
+    res.className = `test-result ${r.ok ? 'test-ok' : 'test-fail'}`;
+    res.textContent = (r.ok ? '✓ ' : '✗ ') + r.message;
+    res.style.display = 'block';
+  } catch(e) {
+    res.className = 'test-result test-fail';
+    res.textContent = '✗ ' + e.message;
+    res.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔌 Verbindung testen';
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function toast(msg, err = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = err ? 'rgba(236,72,153,.9)' : 'rgba(16,185,129,.9)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.getElementById('login-pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+if (token) {
+  apiFetch('/api/auth/me').then(me => {
+    if (me.is_admin) {
+      document.getElementById('user-pill').textContent = me.full_name || me.username;
+      showApp();
+    } else {
+      token = null; localStorage.removeItem('fh_token');
+    }
+  }).catch(() => { token = null; localStorage.removeItem('fh_token'); });
+}
+</script>
+</body>
+</html>
