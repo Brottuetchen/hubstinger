@@ -1,4 +1,4 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -301,7 +301,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 40),
                   const Text('Family Hub · Self-hosted',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, color: Colors.white18)),
+                    style: TextStyle(fontSize: 11, color: AppColors.white18)),
                   const SizedBox(height: 40),
                 ],
               ),

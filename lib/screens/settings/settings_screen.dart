@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/colors.dart';
@@ -42,7 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     padding: const EdgeInsets.only(bottom:12),
     child:GlassCard(weight:GlassWeight.mid,borderRadius:24,padding:const EdgeInsets.all(18),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(title.toUpperCase(),style:const TextStyle(fontSize:10,letterSpacing:1.1,color:Colors.white35,fontWeight:FontWeight.w600)),
+        Text(title.toUpperCase(),style:TextStyle(fontSize:10,letterSpacing:1.1,color:AppColors.white35,fontWeight:FontWeight.w600)),
         const SizedBox(height:14),
         child,
       ])));
@@ -52,7 +52,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child:Row(children:[
         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text(label,style:const TextStyle(fontSize:14)),
-          if(sub.isNotEmpty) Text(sub,style:const TextStyle(fontSize:11,color:Colors.white35)),
+          if(sub.isNotEmpty) Text(sub,style:TextStyle(fontSize:11,color:AppColors.white35)),
         ])),
         right,
       ])),
@@ -119,7 +119,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(width:14),
           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text(fullName,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:17)),
-            if(email.isNotEmpty) Text(email,style:const TextStyle(fontSize:12,color:Colors.white40)),
+            if(email.isNotEmpty) Text(email,style:TextStyle(fontSize:12,color:AppColors.white40)),
             const SizedBox(height:7),
             if(isAdmin) GlassCard(borderRadius:8,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:10,vertical:3),
               child:Text('Admin',style:TextStyle(fontSize:10,color:AppColors.violet.withOpacity(0.9),letterSpacing:0.8,fontWeight:FontWeight.w700))),
@@ -143,7 +143,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               border: InputBorder.none,
               isDense: true,
               hintText: 'https://your-server.com',
-              hintStyle: TextStyle(color: Colors.white20, fontSize: 12),
+              hintStyle: TextStyle(color: AppColors.white20, fontSize: 12),
             ),
             onSubmitted: (url) => AuthService.instance.saveBaseUrl(url),
             onEditingComplete: () => AuthService.instance.saveBaseUrl(_urlCtrl.text),
@@ -182,7 +182,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ])),
       _section('App',Column(children:[
         _row('Version','Family Hub v2.0',const Text('Aktuell',style:TextStyle(fontSize:12,color:Colors.white30))),
-        _row('Flutter Build','iOS & Android',GlassCard(borderRadius:10,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),child:const Text('Build ›',style:TextStyle(fontSize:11,color:Colors.white50))),last:true),
+        _row('Flutter Build','iOS & Android',GlassCard(borderRadius:10,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),child:const Text('Build ›',style:TextStyle(fontSize:11,color:AppColors.white50))),last:true),
       ])),
     ]));
   }

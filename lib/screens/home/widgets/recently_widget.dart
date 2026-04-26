@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/colors.dart';
@@ -30,7 +30,7 @@ class RecentlyWidget extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('NEU IN JELLYFIN',
-            style: TextStyle(fontSize: 10, letterSpacing: 1.2, color: Colors.white35, fontWeight: FontWeight.w600)),
+            style: TextStyle(fontSize: 10, letterSpacing: 1.2, color: AppColors.white35, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           recentAsync.when(
             loading: () => const Center(
@@ -75,7 +75,7 @@ class RecentlyWidget extends ConsumerWidget {
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                           overflow: TextOverflow.ellipsis),
                         Text('$type${added.isNotEmpty ? ' · $added' : ''}',
-                          style: const TextStyle(fontSize: 11, color: Colors.white35)),
+                          style: TextStyle(fontSize: 11, color: AppColors.white35)),
                       ])),
                       GlassCard(borderRadius: 8, weight: GlassWeight.thin,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -1,4 +1,4 @@
-// services_screen.dart
+﻿// services_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/constants/colors.dart';
@@ -75,7 +75,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     color:s.$3.withOpacity(0.15), border:Border.all(color:s.$3.withOpacity(s.$4?0.4:0.15))),
                   child:Center(child:Text(s.$2,style:const TextStyle(fontSize:24)))),
                 const SizedBox(height:8),
-                Text(s.$1,style:TextStyle(fontSize:10,fontWeight:FontWeight.w500,color:s.$4?Colors.white75:Colors.white30),textAlign:TextAlign.center),
+                Text(s.$1,style:TextStyle(fontSize:10,fontWeight:FontWeight.w500,color:s.$4?AppColors.white75:Colors.white30),textAlign:TextAlign.center),
                 const SizedBox(height:6),
                 StatusDot(online:s.$4,size:6),
               ]),

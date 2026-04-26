@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colors.dart';
 import '../../../providers/providers.dart';
@@ -20,7 +20,7 @@ class WatchtimeWidget extends ConsumerWidget {
         children: [
           Row(children: [
             const Text('WATCHTIME',
-              style: TextStyle(fontSize: 10, letterSpacing: 1.0, color: Colors.white35, fontWeight: FontWeight.w600)),
+              style: TextStyle(fontSize: 10, letterSpacing: 1.0, color: AppColors.white35, fontWeight: FontWeight.w600)),
             const Spacer(),
             statsAsync.when(
               loading: () => const SizedBox(width: 14, height: 14,

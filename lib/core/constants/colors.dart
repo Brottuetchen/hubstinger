@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class AppColors {
   AppColors._();
@@ -20,16 +20,27 @@ class AppColors {
   static const bgOrb4     = Color(0xFF38055C);
 
   // Glass layers
-  static Color glassLight  = Colors.white.withOpacity(0.08);
-  static Color glassMid    = Colors.white.withOpacity(0.10);
-  static Color glassHeavy  = Colors.white.withOpacity(0.13);
-  static Color glassBorder = Colors.white.withOpacity(0.18);
-  static Color sheen       = Colors.white.withOpacity(0.14);
+  static const Color glassLight  = Color(0x14FFFFFF);
+  static const Color glassMid    = Color(0x1AFFFFFF);
+  static const Color glassHeavy  = Color(0x21FFFFFF);
+  static const Color glassBorder = Color(0x2EFFFFFF);
+  static const Color sheen       = Color(0x24FFFFFF);
 
   // Status
   static const online  = Color(0xFF4ADE80);
   static const offline = Color(0xFF475569);
   static const warning = Color(0xFFFBBF24);
+
+  // White with opacity – const-safe, avoids withOpacity() in const constructors
+  static const white88 = Color(0xE0FFFFFF);
+  static const white75 = Color(0xBFFFFFFF);
+  static const white50 = Color(0x80FFFFFF);
+  static const white45 = Color(0x73FFFFFF);
+  static const white40 = Color(0x66FFFFFF);
+  static const white35 = Color(0x59FFFFFF);
+  static const white22 = Color(0x38FFFFFF);
+  static const white20 = Color(0x33FFFFFF);
+  static const white18 = Color(0x2EFFFFFF);
 }
 
 class AppGradients {

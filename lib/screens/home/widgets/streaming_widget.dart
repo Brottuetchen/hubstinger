@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colors.dart';
 import '../../../providers/providers.dart';
@@ -25,14 +25,14 @@ class StreamingWidget extends ConsumerWidget {
               const SizedBox(width: 8),
               const Text('JETZT GESTREAMT',
                 style: TextStyle(fontSize: 11, letterSpacing: 1.2,
-                    color: Colors.white45, fontWeight: FontWeight.w600),
+                    color: AppColors.white45, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
               GlassCard(
                 borderRadius: 10, weight: GlassWeight.thin,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: const Text('Jellyfin',
-                  style: TextStyle(fontSize: 11, color: Colors.white45)),
+                  style: TextStyle(fontSize: 11, color: AppColors.white45)),
               ),
             ],
           ),
@@ -78,7 +78,7 @@ class StreamingWidget extends ConsumerWidget {
                                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, letterSpacing: -0.3)),
                               const SizedBox(height: 3),
                               Text('${s['user'] ?? ''} · ${s['progress'] ?? 0}%',
-                                style: const TextStyle(fontSize: 12, color: Colors.white40)),
+                                style: TextStyle(fontSize: 12, color: AppColors.white40)),
                               const SizedBox(height: 7),
                               GlassProgressBar(value: progress, color: AppColors.cyan),
                             ],
