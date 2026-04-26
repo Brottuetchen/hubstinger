@@ -34,6 +34,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from pydantic import BaseModel
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -353,12 +354,25 @@ async def oidc_callback(
     except httpx.RequestError as e:
         raise HTTPException(status_code=502, detail=f"Authentik unreachable: {e}")
 
-    # Decode ID token (verification via JWKS optional for self-hosted – we control the IdP)
-    id_token = token_data.get("id_token", "")
+    # Fetch user claims from userinfo endpoint using access token.
+    # This avoids trusting unsigned/unverified ID token payloads.
+    access_token = token_data.get("access_token", "")
+    if not access_token:
+        raise HTTPException(status_code=502, detail="OIDC access token missing")
+
+    userinfo_url = f"{AUTHENTIK_URL}/application/o/userinfo/"
     try:
-        claims = jwt.decode(id_token, options={"verify_signature": False})
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"ID token decode failed: {e}")
+        async with httpx.AsyncClient(timeout=10) as c:
+            userinfo_resp = await c.get(
+                userinfo_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if userinfo_resp.status_code != 200:
+                logger.error("OIDC userinfo failed: %s %s", userinfo_resp.status_code, userinfo_resp.text)
+                raise HTTPException(status_code=502, detail="OIDC userinfo failed")
+            claims = userinfo_resp.json()
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"OIDC userinfo unreachable: {e}")
 
     oidc_sub   = claims.get("sub", "")
     email      = claims.get("email", "")
@@ -391,7 +405,8 @@ async def oidc_callback(
 
     hub_token = create_token({"sub": user.username})
     # Redirect to Flutter deep link; browser shows fallback if app not installed
-    redirect_url = f"hubstinger://auth?token={hub_token}"
+    # Put token in fragment so it isn't sent in server logs, referers, or proxies.
+    redirect_url = f"hubstinger://auth#token={hub_token}"
     return RedirectResponse(url=redirect_url, status_code=302)
 
 # ─── Push Notifications ───────────────────────────────────────────────────────
