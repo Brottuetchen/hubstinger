@@ -48,6 +48,10 @@ class ApiService {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return body.isNotEmpty ? jsonDecode(body) : null;
     }
+    if (res.statusCode == 401) {
+      // Token expired or invalid – trigger logout on next provider read.
+      AuthService.instance.deleteToken();
+    }
     String msg = body;
     try { msg = (jsonDecode(body) as Map)['detail'] ?? body; } catch (_) {}
     throw ApiException(res.statusCode, msg);
@@ -109,12 +113,23 @@ class ApiService {
     } catch (_) { return null; }
   }
 
+  // ── OIDC ───────────────────────────────────────────────────────────────────
+
+  /// Returns the Authentik authorization URL, or null if OIDC not configured.
+  Future<String?> getOidcUrl() async {
+    try {
+      final data = await _get('/api/auth/oidc-url', auth: false);
+      return (data as Map<String, dynamic>)['url'] as String?;
+    } on ApiException catch (e) {
+      if (e.statusCode == 503) return null; // OIDC not configured
+      rethrow;
+    }
+  }
+
   // ── Health ─────────────────────────────────────────────────────────────────
 
-  Future<bool> checkHealth() async {
-    try {
-      await _get('/', auth: false);
-      return true;
-    } catch (_) { return false; }
+  Future<Map<String, dynamic>> checkHealth() async {
+    final data = await _get('/', auth: false);
+    return (data as Map<String, dynamic>);
   }
 }

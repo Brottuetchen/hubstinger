@@ -4,27 +4,34 @@ Endpoints: Auth, Push Notifications, Stats, Newsletter
 """
 
 import os
+import sys
 import json
 import logging
 import asyncio
+import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
+from urllib.parse import urlencode
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from starlette.responses import Response
 from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -47,6 +54,18 @@ VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_PUBLIC_KEY  = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_EMAIL       = os.getenv("VAPID_EMAIL", "")
 
+# CORS – comma-separated list of allowed origins; * only for dev
+_cors_raw    = os.getenv("CORS_ORIGINS", "")
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()] or ["*"]
+
+# Public backend URL (needed for OIDC redirect_uri)
+BACKEND_URL  = os.getenv("BACKEND_URL", "http://localhost:8080")
+
+# Authentik OIDC
+AUTHENTIK_URL           = os.getenv("AUTHENTIK_URL", "")           # e.g. https://auth.example.com
+AUTHENTIK_CLIENT_ID     = os.getenv("AUTHENTIK_CLIENT_ID", "")
+AUTHENTIK_CLIENT_SECRET = os.getenv("AUTHENTIK_CLIENT_SECRET", "")
+
 # External services
 JELLYFIN_URL    = os.getenv("JELLYFIN_URL", "")
 JELLYFIN_TOKEN  = os.getenv("JELLYFIN_TOKEN", "")
@@ -56,6 +75,10 @@ TMDB_API_KEY    = os.getenv("TMDB_API_KEY", "")
 OLLAMA_URL      = os.getenv("OLLAMA_URL", "")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2")
 UPTIME_KUMA_URL = os.getenv("UPTIME_KUMA_URL", "")
+
+# In-memory OIDC state store {state: {"created": datetime, "nonce": str}}
+# Single-instance only – fine for self-hosted
+_oidc_states: dict[str, dict] = {}
 
 # Load VAPID from file if not in env
 _vapid_file = BASE_DIR / "vapid_keys.json"
@@ -182,35 +205,82 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("Family Hub API starting...")
+
+    # Hard-abort on default secret key – no silent security holes
     if SECRET_KEY == _SECRET_KEY_DEFAULT:
-        logger.warning("⚠️  SECRET_KEY is not set! Generate one: openssl rand -hex 32")
+        logger.critical("FATAL: SECRET_KEY is the default placeholder.")
+        logger.critical("       Run: openssl rand -hex 32  and set it in .env")
+        sys.exit(1)
+
+    if CORS_ORIGINS == ["*"]:
+        logger.warning("⚠️  CORS_ORIGINS=* – restrict in production via CORS_ORIGINS env var")
     if not VAPID_EMAIL:
-        logger.warning("⚠️  VAPID_EMAIL not set – push notifications will not work")
-    logger.info(f"Jellyfin:  {'✓ ' + JELLYFIN_URL if JELLYFIN_URL else '✗ not configured'}")
-    logger.info(f"Jellyseerr:{'✓ ' + JELLYSEERR_URL if JELLYSEERR_URL else '✗ not configured'}")
-    logger.info(f"TMDB:      {'✓ configured' if TMDB_API_KEY else '✗ not configured'}")
-    logger.info(f"Ollama:    {'✓ ' + OLLAMA_URL if OLLAMA_URL else '✗ not configured'}")
-    logger.info(f"VAPID:     {'✓ configured' if VAPID_PUBLIC_KEY else '✗ not configured'}")
+        logger.warning("⚠️  VAPID_EMAIL not set – push notifications disabled")
+
+    logger.info(f"CORS:       {CORS_ORIGINS}")
+    logger.info(f"Jellyfin:   {'✓ ' + JELLYFIN_URL if JELLYFIN_URL else '✗ not configured'}")
+    logger.info(f"TMDB:       {'✓' if TMDB_API_KEY else '✗ not configured'}")
+    logger.info(f"Ollama:     {'✓ ' + OLLAMA_URL if OLLAMA_URL else '✗ not configured'}")
+    logger.info(f"VAPID:      {'✓' if VAPID_PUBLIC_KEY else '✗ not configured'}")
+    logger.info(f"Authentik:  {'✓ ' + AUTHENTIK_URL if AUTHENTIK_URL else '✗ not configured'}")
     logger.info("=" * 50)
     yield
     logger.info("Family Hub API shutting down...")
 
-app = FastAPI(title="Family Hub API", version="2.0.0", lifespan=lifespan)
+limiter = Limiter(key_func=get_remote_address)
 
-app.add_middleware(CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="Family Hub API",
+    version="2.0.0",
+    lifespan=lifespan,
+    # Hide docs in production by checking an env var
+    docs_url="/docs" if os.getenv("ENABLE_DOCS", "").lower() == "true" else None,
+    redoc_url=None,
 )
 
-# Serve frontend if public dir exists
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Security headers ──────────────────────────────────────────────────────────
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        return response
+
+app.add_middleware(_SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+# ── Global exception handler (no stack traces in responses) ───────────────────
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s: %s",
+                 request.method, request.url.path, exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+# ── Static assets ─────────────────────────────────────────────────────────────
 if PUBLIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(PUBLIC_DIR / "assets")), name="assets")
 
 # ─── Auth endpoints ───────────────────────────────────────────────────────────
 @app.post("/api/auth/token", response_model=Token)
-async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     user = db.query(UserModel).filter(UserModel.username == form.username).first()
     if not user or not verify_password(form.password, user.hashed_pw):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
@@ -220,6 +290,105 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depen
 async def get_me(user: UserModel = Depends(get_current_user)):
     return {"username": user.username, "email": user.email,
             "full_name": user.full_name, "is_admin": user.is_admin}
+
+# ─── OIDC / Authentik ─────────────────────────────────────────────────────────
+@app.get("/api/auth/oidc-url")
+async def oidc_login_url():
+    """Return the Authentik authorization URL for the Flutter app to open."""
+    if not AUTHENTIK_URL or not AUTHENTIK_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="OIDC not configured")
+    state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
+    _oidc_states[state] = {"created": datetime.utcnow(), "nonce": nonce}
+    # Purge states older than 10 minutes
+    cutoff = datetime.utcnow() - timedelta(minutes=10)
+    stale  = [k for k, v in _oidc_states.items() if v["created"] < cutoff]
+    for k in stale:
+        del _oidc_states[k]
+
+    params = urlencode({
+        "client_id":     AUTHENTIK_CLIENT_ID,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "redirect_uri":  f"{BACKEND_URL}/api/auth/oidc/callback",
+        "state":         state,
+        "nonce":         nonce,
+    })
+    return {"url": f"{AUTHENTIK_URL}/application/o/authorize/?{params}"}
+
+
+@app.get("/api/auth/oidc/callback")
+@limiter.limit("20/minute")
+async def oidc_callback(
+    request: Request,
+    code: str,
+    state: str,
+    db: Session = Depends(get_db),
+):
+    """Authentik redirects here after login. Exchanges code, issues Hub JWT."""
+    # Validate state
+    state_data = _oidc_states.pop(state, None)
+    if not state_data:
+        raise HTTPException(status_code=400, detail="Invalid or expired OIDC state")
+
+    # Exchange code for tokens
+    token_url = f"{AUTHENTIK_URL}/application/o/token/"
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.post(token_url, data={
+                "grant_type":   "authorization_code",
+                "code":         code,
+                "redirect_uri": f"{BACKEND_URL}/api/auth/oidc/callback",
+                "client_id":    AUTHENTIK_CLIENT_ID,
+                "client_secret": AUTHENTIK_CLIENT_SECRET,
+            })
+            if r.status_code != 200:
+                logger.error("OIDC token exchange failed: %s %s", r.status_code, r.text)
+                raise HTTPException(status_code=502, detail="OIDC token exchange failed")
+            token_data = r.json()
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Authentik unreachable: {e}")
+
+    # Decode ID token (verification via JWKS optional for self-hosted – we control the IdP)
+    id_token = token_data.get("id_token", "")
+    try:
+        claims = jwt.decode(id_token, options={"verify_signature": False})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"ID token decode failed: {e}")
+
+    oidc_sub   = claims.get("sub", "")
+    email      = claims.get("email", "")
+    full_name  = claims.get("name", "") or claims.get("preferred_username", email)
+
+    if not email:
+        raise HTTPException(status_code=400, detail="No email in OIDC token")
+
+    # Create or update user
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if user is None:
+        username = email.split("@")[0].replace(".", "_").lower()
+        # Ensure username uniqueness
+        base, n = username, 1
+        while db.query(UserModel).filter(UserModel.username == username).first():
+            username = f"{base}{n}"; n += 1
+        user = UserModel(
+            username=username,
+            email=email,
+            full_name=full_name,
+            hashed_pw=f"oidc:{oidc_sub}",  # no password login for OIDC users
+            is_admin=False,
+        )
+        db.add(user)
+        db.commit()
+        logger.info("OIDC: new user created: %s (%s)", username, email)
+    else:
+        user.full_name = full_name
+        db.commit()
+
+    hub_token = create_token({"sub": user.username})
+    # Redirect to Flutter deep link; browser shows fallback if app not installed
+    redirect_url = f"hubstinger://auth?token={hub_token}"
+    return RedirectResponse(url=redirect_url, status_code=302)
 
 # ─── Push Notifications ───────────────────────────────────────────────────────
 @app.get("/api/vapid-public-key")
@@ -544,12 +713,13 @@ async def test_plugin(
 @app.get("/")
 async def health():
     return {
-        "status": "online",
-        "version": "2.0.0",
-        "vapid_configured": bool(VAPID_PUBLIC_KEY),
+        "status":              "online",
+        "version":             "2.0.0",
+        "vapid_configured":    bool(VAPID_PUBLIC_KEY),
         "jellyfin_configured": bool(JELLYFIN_TOKEN),
-        "tmdb_configured": bool(TMDB_API_KEY),
-        "timestamp": datetime.utcnow().isoformat(),
+        "tmdb_configured":     bool(TMDB_API_KEY),
+        "oidc_configured":     bool(AUTHENTIK_URL and AUTHENTIK_CLIENT_ID),
+        "timestamp":           datetime.utcnow().isoformat(),
     }
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

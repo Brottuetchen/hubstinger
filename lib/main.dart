@@ -4,8 +4,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/colors.dart';
 import 'core/theme/app_theme.dart';
+import 'package:app_links/app_links.dart';
 import 'providers/providers.dart';
 import 'screens/auth/login_screen.dart';
+import 'services/auth_service.dart';
 import 'services/push_service.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/services/services_screen.dart';
@@ -40,27 +42,55 @@ class FamilyHubApp extends StatelessWidget {
 }
 
 // ── Auth Gate ─────────────────────────────────────────────────────────────────
-class _AuthGate extends ConsumerWidget {
+class _AuthGate extends ConsumerStatefulWidget {
   const _AuthGate();
+  @override
+  ConsumerState<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends ConsumerState<_AuthGate> {
+  late final AppLinks _appLinks;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    _listenDeepLinks();
+  }
+
+  void _listenDeepLinks() {
+    _appLinks = AppLinks();
+    // Handle link that launched the app from cold start
+    _appLinks.getInitialLink().then(_handleLink);
+    // Handle links while app is running
+    _appLinks.uriLinkStream.listen(_handleLink);
+  }
+
+  Future<void> _handleLink(Uri? uri) async {
+    if (uri == null) return;
+    // hubstinger://auth?token=<jwt>
+    if (uri.scheme == 'hubstinger' && uri.host == 'auth') {
+      final token = uri.queryParameters['token'];
+      if (token != null && token.isNotEmpty) {
+        await AuthService.instance.saveToken(token);
+        if (mounted) ref.read(authProvider.notifier).reloadUser();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
     if (auth.isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.bg,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.violet),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.violet)),
       );
     }
 
     if (!auth.isLoggedIn) return const LoginScreen();
 
-    // Initialize push notifications after successful login (fails silently without Firebase).
     PushService.instance.init();
-
     return const MainShell();
   }
 }

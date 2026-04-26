@@ -227,6 +227,74 @@ HTTPS ist für Web Push Notifications auf mobilen Browsern Pflicht.
 
 ---
 
+## Authentik OIDC Setup
+
+### 1 – Authentik Application anlegen
+```
+Authentik Admin → Applications → Create
+  Name:     Family Hub
+  Provider: (neu erstellen, s.u.)
+```
+
+### 2 – OAuth2/OIDC Provider
+```
+Providers → Create → OAuth2/OpenID Provider
+  Name:           Family Hub
+  Client type:    Confidential
+  Client ID:      family-hub         ← AUTHENTIK_CLIENT_ID
+  Client Secret:  (generiert)        ← AUTHENTIK_CLIENT_SECRET
+  Redirect URI:   https://hub.example.com/api/auth/oidc/callback
+  Scopes:         openid email profile
+```
+
+### 3 – .env setzen
+```bash
+AUTHENTIK_URL=https://auth.example.com
+AUTHENTIK_CLIENT_ID=family-hub
+AUTHENTIK_CLIENT_SECRET=<generated>
+BACKEND_URL=https://hub.example.com   # für redirect_uri
+```
+
+### 4 – Flutter Deep Link (nach flutter create .)
+
+**Android** – `android/app/src/main/AndroidManifest.xml` in `<activity>`:
+```xml
+<intent-filter>
+  <action android:name="android.intent.action.VIEW"/>
+  <category android:name="android.intent.category.DEFAULT"/>
+  <category android:name="android.intent.category.BROWSABLE"/>
+  <data android:scheme="hubstinger" android:host="auth"/>
+</intent-filter>
+```
+
+**iOS** – `ios/Runner/Info.plist`:
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array><string>hubstinger</string></array>
+  </dict>
+</array>
+```
+
+Nach diesen Änderungen erscheint der **"Mit Authentik anmelden"**-Button automatisch
+im Login-Screen, sobald OIDC im Backend konfiguriert ist.
+
+---
+
+## Sicherheitshinweise (Produktion)
+
+| Einstellung | Empfehlung |
+|-------------|-----------|
+| `SECRET_KEY` | `openssl rand -hex 32` – Backend startet nicht ohne diesen Wert |
+| `CORS_ORIGINS` | Auf deine Domain einschränken, kein `*` |
+| `ENABLE_DOCS` | `false` (Standard) – kein Swagger-UI in Produktion |
+| HTTPS | Pflicht für Push & OIDC – Cloudflare Tunnel oder NPM |
+| Login-Rate-Limit | Eingebaut: 10 Versuche/Minute pro IP |
+
+---
+
 ## Native Push Notifications (Firebase / FCM)
 
 Für native Push auf iOS/Android ist Firebase erforderlich:

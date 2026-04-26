@@ -74,6 +74,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await AuthService.instance.logout();
     state = const AuthState(isLoggedIn: false);
   }
+
+  /// Re-fetch user info after an OIDC deep-link login.
+  Future<void> reloadUser() async {
+    try {
+      final user = await ApiService.instance.getMe();
+      state = AuthState(isLoggedIn: true, user: user);
+    } catch (_) {
+      await AuthService.instance.logout();
+      state = const AuthState(isLoggedIn: false);
+    }
+  }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
