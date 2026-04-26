@@ -2,19 +2,21 @@
 
 Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 
-**Liquid Glass Dark UI · Widget Grid · Plugin System**
+**Liquid Glass Dark UI · Customizable Widget Grid · Plugin System**
 
 ---
 
 ## Features
 
-- 🪟 **Liquid Glass UI** – visionOS-inspired, fully custom
-- 🧩 **Widget Grid** – iOS-style customizable home screen, persisted locally
-- 📺 **Now Streaming** – live Jellyfin sessions
-- 📬 **Newsletter** – auto-generated weekly via n8n + TMDB + Ollama
-- 📊 **Watchtime** – per-user leaderboard from Jellyfin
-- 🔔 **Push Notifications** – Web Push via VAPID (Uptime Kuma / n8n)
-- 📱 **iPad support** – sidebar layout at ≥600px
+- 🪟 **Liquid Glass UI** – visionOS-inspired dark design system
+- 🧩 **Widget Grid** – iOS-style home screen, drag-to-reorder, persisted locally
+- 📺 **Now Streaming** – live Jellyfin session overview
+- 📷 **Media Posters** – Jellyfin thumbnails via built-in image proxy
+- 📬 **Weekly Newsletter** – auto-generated via n8n + TMDB + Ollama
+- 🔌 **Plugin System** – 13 built-in plugins (Sonarr, Radarr, Immich, Proxmox, …)
+- ⚙️ **Admin Panel** – web UI at `/admin` to configure & test plugins
+- 🔔 **Push Notifications** – Web Push via VAPID (FCM-ready)
+- 📱 **iPad** – sidebar layout on wide screens
 - 🔐 **Auth** – JWT login, secure token storage
 
 ---
@@ -26,159 +28,217 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 | App | Flutter 3.x (Dart) |
 | State | Riverpod |
 | Backend | FastAPI (Python 3.11+) |
-| DB | SQLite (via SQLAlchemy) |
-| Automation | n8n |
+| DB | SQLite via SQLAlchemy |
+| Push | Web Push / VAPID (pywebpush) |
 | Media | Jellyfin + Jellyseerr |
 | Metadata | TMDB API |
 | AI Summaries | Ollama |
-| Monitoring | Uptime Kuma |
-| Push | Web Push / VAPID |
+| Automation | n8n |
 
 ---
 
-## Setup
+## Quick Start
 
-### 1. Backend
+### 1 – Backend
 
 ```bash
 cd backend
 
-# Create virtual environment
-python3 -m venv venv && source venv/bin/activate  # Linux/Mac
-# OR: python -m venv venv && venv\Scripts\activate   # Windows
+# Python 3.11+ required
+python3 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 
 # Configure
 cp .env.example .env
-nano .env          # Fill in all required values (see comments in .env.example)
+nano .env                         # Fill in required values (see comments)
 
-# Generate SECRET_KEY
-openssl rand -hex 32   # Paste output into .env as SECRET_KEY
+# Generate a strong SECRET_KEY (paste into .env)
+openssl rand -hex 32
 
-# Create admin user (interactive)
+# Create admin account (interactive)
 python create_admin.py
 
-# Start server
-python main.py         # Runs on port 8080 by default
+# Start backend (port 8080)
+python main.py
 ```
 
-### 2. Flutter App
+Backend läuft auf `http://localhost:8080`.
+Admin-Panel: `http://localhost:8080/admin`
+
+### 2 – Flutter App
+
+Flutter 3.x SDK erforderlich → https://flutter.dev/docs/get-started/install
 
 ```bash
-# Install Flutter: https://flutter.dev/docs/get-started/install
+# Repo-Root
+
+# Einmalig: Platform-Verzeichnisse (android/ ios/ web/) generieren
+flutter create --org com.yourname --project-name family_hub .
+
+# Dart-Pakete installieren
 flutter pub get
-flutter run            # needs connected device or emulator
+
+# App starten (Gerät oder Emulator muss verbunden sein)
+flutter run
 ```
 
-On first launch, the app shows a **Server URL** field — enter the URL of your backend (e.g. `http://192.168.1.10:8080` or `https://your-domain.com`).
+Beim ersten Start erscheint ein **Server-URL**-Eingabefeld.
+Trage dort deine Backend-URL ein (`http://192.168.1.x:8080` lokal oder `https://deine-domain.com`).
 
-### 3. Required services
+### 3 – Plugins konfigurieren
 
-| Service | Purpose | Required |
-|---------|---------|----------|
-| FastAPI backend | API, auth, push | ✅ |
-| Jellyfin | Media server | ✅ for streaming/recently widgets |
-| TMDB API key | Movie metadata & posters | ✅ for newsletter |
-| Ollama | German AI summaries | optional |
-| Jellyseerr | Media requests | optional |
-| Uptime Kuma | Service monitoring | optional |
-| n8n | Weekly newsletter automation | optional |
+`http://localhost:8080/admin` öffnen, mit Admin-Zugangsdaten einloggen,
+dann Plugins aktivieren und API-Keys eintragen (Sonarr, Immich, Jellyseerr, …).
 
-### 4. VAPID Push Notifications
+---
+
+## Required vs. Optional Services
+
+| Service | Zweck | Pflicht |
+|---------|-------|:-------:|
+| Family Hub Backend | API + Auth | ✅ |
+| Jellyfin | Streams, Recently Added | ✅ für Media-Widgets |
+| TMDB API | Film/Serien-Metadaten | empfohlen |
+| Ollama | KI-Zusammenfassungen (Newsletter) | optional |
+| n8n | Wöchentlicher Newsletter-Cron | optional |
+
+Alle anderen Services (Sonarr, Radarr, Proxmox, Immich, Nextcloud …) werden
+ausschließlich über das Admin-Plugin-System konfiguriert – kein Code nötig.
+
+---
+
+## Plugin System
+
+Auto-Discovery: Alle Dateien in `backend/plugins/` die `BasePlugin` erweitern
+werden beim Start automatisch erkannt und im Admin-Panel angezeigt.
+
+### Eingebaute Plugins
+
+| Plugin | Stats | Newsletter |
+|--------|-------|:----------:|
+| Sonarr | missing / upcoming episodes | ✅ |
+| Radarr | missing / total movies | ✅ |
+| Proxmox | CPU %, RAM, VMs, LXC | – |
+| Jellyseerr | pending / approved requests | ✅ |
+| Uptime Kuma | up/down count, uptime % | ✅ (nur bei Ausfall) |
+| Immich | Fotos / Videos, Storage GB | ✅ |
+| Navidrome | Künstler, Now Playing | ✅ |
+| Nextcloud | Dateien, Nutzer, Storage | – |
+| n8n | Workflows, Executions | – |
+| Gitea | Repos, Stars, Issues | ✅ |
+| Portainer | Container running / stopped | – |
+| Paperless-ngx | Dokumente, Inbox | ✅ |
+| Audiobookshelf | Bücher, Podcasts, In-Progress | ✅ |
+
+### Eigenes Plugin schreiben
+
+`backend/plugins/my_plugin.py` erstellen:
+
+```python
+import httpx
+from base_plugin import BasePlugin
+
+class MyPlugin(BasePlugin):
+    name        = "my_service"     # eindeutige snake_case ID
+    label       = "My Service"
+    description = "Kurzbeschreibung für Admin-UI"
+    icon        = "🔧"
+    version     = "1.0.0"
+
+    config_schema = {
+        "url": {
+            "type": "url", "label": "Service URL",
+            "placeholder": "http://192.168.1.10:1234",
+            "required": True,
+        },
+        "api_key": {
+            "type": "password", "label": "API Key",
+            "required": True, "secret": True,   # wird in UI/API maskiert
+        },
+    }
+
+    async def test(self) -> dict:
+        # {"ok": True, "message": "..."} oder {"ok": False, "message": "..."}
+        ...
+
+    async def get_stats(self) -> dict:
+        # Flaches Dict – Keys erscheinen in /api/stats
+        return {"my_service_count": 42}
+
+    async def get_newsletter_block(self) -> dict | None:
+        # {"title": "...", "items": [{"title": "...", "subtitle": "..."}]}
+        # oder None um Block zu überspringen
+        return None
+```
+
+Backend neu starten → Plugin erscheint automatisch in `/admin`.
+
+---
+
+## Umgebungsvariablen
+
+Alle Variablen mit Erklärung stehen in `backend/.env.example`.
+
+| Variable | Beschreibung | Pflicht |
+|----------|-------------|:-------:|
+| `SECRET_KEY` | JWT-Signing-Key (`openssl rand -hex 32`) | ✅ |
+| `JELLYFIN_URL` | Jellyfin-Basis-URL | für Media-Widgets |
+| `JELLYFIN_TOKEN` | Jellyfin API-Token | für Media-Widgets |
+| `TMDB_API_KEY` | TMDB API-Key (kostenlos) | empfohlen |
+| `OLLAMA_URL` | Ollama-Basis-URL | Newsletter-KI |
+| `VAPID_PRIVATE_KEY` | VAPID Private Key | Push Notifications |
+| `VAPID_PUBLIC_KEY` | VAPID Public Key | Push Notifications |
+| `VAPID_EMAIL` | Kontakt-E-Mail für VAPID | Push Notifications |
+
+Alle anderen Services → Admin-Plugin-UI, keine Env-Vars nötig.
+
+---
+
+## VAPID-Keys generieren
 
 ```bash
-cd backend
-
-# Generate VAPID keys (one time)
+cd backend && source venv/bin/activate
 python -c "
 from pywebpush import Vapid
-import json, pathlib
 v = Vapid()
 v.generate_keys()
-data = {'private_key': v.private_key.decode(), 'public_key': v.public_key.decode()}
-pathlib.Path('vapid_keys.json').write_text(json.dumps(data, indent=2))
-print('Saved to vapid_keys.json')
+print('Schlüssel in vapid_keys.json gespeichert')
+v.save_files()
 "
 ```
 
-Or set `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` directly in `.env`.
-
-### 5. n8n Newsletter Workflow
-
-1. In n8n: create a new workflow
-2. Trigger: **Cron** → Friday 17:00 (`0 17 * * 5`)
-3. Node: **HTTP Request** → `POST https://your-backend.com/api/newsletter/generate`
-4. Activate workflow
+Der Backend lädt `vapid_keys.json` automatisch wenn keine Env-Vars gesetzt sind.
 
 ---
 
-## Building
+## Cloudflare Tunnel (optional, für HTTPS)
 
-### Android
-
-```bash
-flutter build apk --release
-# Output: build/app/outputs/flutter-apk/app-release.apk
+```yaml
+# ~/.cloudflared/config.yml
+ingress:
+  - hostname: hub.deine-domain.com
+    service: http://localhost:8080
+  - service: http_status:404
 ```
 
-### iOS (requires macOS + Xcode)
-
-```bash
-flutter build ipa --release
-```
-
-### GitHub Actions (CI/CD)
-
-Push to `main` → automatic builds for both platforms.
-
-For TestFlight / App Store, add these secrets to your GitHub repo:
-- `IOS_CERTIFICATE_BASE64`
-- `IOS_CERTIFICATE_PASSWORD`
-- `IOS_PROVISIONING_PROFILE_BASE64`
-- `KEYCHAIN_PASSWORD`
-- `APP_STORE_KEY_ID`
-- `APP_STORE_ISSUER_ID`
-- `APP_STORE_API_KEY`
+HTTPS ist für Web Push Notifications auf mobilen Browsern Pflicht.
 
 ---
 
-## Widget System
+## Native Push Notifications (Firebase / FCM)
 
-Each widget is a self-contained `ConsumerWidget`. Layout persists via SharedPreferences.
+Für native Push auf iOS/Android ist Firebase erforderlich:
 
-```dart
-// Adding a custom widget:
-// 1. Create lib/screens/home/widgets/my_widget.dart
-// 2. Register in widget_editor_sheet.dart:
-'my_widget': {'label': 'My Widget', 'icon': '🔧', 'size': WidgetSize.small},
-// 3. Add to switch in home_screen.dart:
-'my_widget' => const MyWidget(),
-```
+1. Firebase-Projekt unter console.firebase.google.com erstellen
+2. Android-App hinzufügen → `google-services.json` → `android/app/` ablegen
+3. iOS-App hinzufügen → `GoogleService-Info.plist` → `ios/Runner/` ablegen
+4. In `pubspec.yaml` ergänzen:
+   ```yaml
+   firebase_core: ^2.27.0
+   firebase_messaging: ^14.7.0
+   ```
+5. `PushService.instance.registerFcmToken(token)` mit FCM-Token aufrufen
 
----
-
-## Backend Plugin System
-
-```python
-# backend/plugins/my_plugin.py
-# Add custom data sources for the newsletter or stats API
-```
-
----
-
-## Roadmap
-
-- [ ] v2.1 – TMDB poster images in app (cached_network_image)
-- [ ] v2.2 – Jellyfin watch history per user
-- [ ] v2.3 – Auto token refresh
-- [ ] v2.5 – Sonarr/Radarr calendar widget
-- [ ] v2.5 – Immich recent photos widget
-- [ ] v3.0 – App Store release
-
----
-
-## License
-
-MIT
+Ohne Firebase sendet das Backend weiterhin Web Push via VAPID an Browser-Subscriber.
