@@ -17,7 +17,10 @@ from urllib.parse import urlencode
 
 import httpx
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, status, Request
+
+load_dotenv()  # Load .env from backend/ directory before reading os.getenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
