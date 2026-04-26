@@ -27,7 +27,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from pywebpush import webpush, WebPushException
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -134,14 +134,16 @@ def get_db():
         db.close()
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2  = OAuth2PasswordBearer(tokenUrl="api/auth/token")
+oauth2 = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain, hashed)
+    try:
+        return _bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False  # OIDC users have no bcrypt hash
 
 def hash_password(password: str) -> str:
-    return pwd_ctx.hash(password)
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 def create_token(data: dict) -> str:
     payload = data.copy()
