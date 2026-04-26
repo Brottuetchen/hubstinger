@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -374,10 +374,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     final t = snap.data ?? DateTime.now();
                     final time = '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
                     return Text(time,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 30, fontWeight: FontWeight.w200,
-                        letterSpacing: -1.5, color: Colors.white88,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                        letterSpacing: -1.5, color: AppColors.white88,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     );
                   },

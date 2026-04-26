@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/colors.dart';
 import '../../../models/models.dart';
@@ -40,7 +40,7 @@ class WidgetEditorSheet extends StatelessWidget {
     return GlassCard(
       borderRadius: 28,
       weight: GlassWeight.thick,
-      rimColor: Colors.white.withOpacity(0.22),
+      rimColor: AppColors.white22,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
         child: Column(
@@ -62,14 +62,14 @@ class WidgetEditorSheet extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
             const SizedBox(height: 6),
             const Text('Tippe auf ein Widget um es hinzuzufügen',
-              style: TextStyle(fontSize: 13, color: Colors.white40)),
+              style: TextStyle(fontSize: 13, color: AppColors.white40)),
             const SizedBox(height: 20),
             if (available.isEmpty)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
                   child: Text('Alle Widgets sind aktiv ✓',
-                    style: TextStyle(color: Colors.white35, fontSize: 14)),
+                    style: TextStyle(color: AppColors.white35, fontSize: 14)),
                 ),
               )
             else
@@ -96,7 +96,7 @@ class WidgetEditorSheet extends StatelessWidget {
                             Text(def['label'] as String,
                               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                             Text('Größe: ${(def['size'] as WidgetSize).name}',
-                              style: const TextStyle(fontSize: 11, color: Colors.white40)),
+                              style: TextStyle(fontSize: 11, color: AppColors.white40)),
                           ]),
                         ),
                         Text('+', style: TextStyle(fontSize: 22, color: AppColors.cyan)),

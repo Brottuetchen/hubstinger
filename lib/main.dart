@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/colors.dart';
@@ -13,6 +13,7 @@ import 'screens/services/services_screen.dart';
 import 'screens/newsletter/newsletter_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'dart:ui';
+import 'core/constants/colors.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -252,7 +253,7 @@ class _BottomBar extends StatelessWidget {
             color: Colors.white.withOpacity(0.11),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.22), width: 1),
+              top: BorderSide(color: AppColors.white22, width: 1),
             ),
           ),
           child: SafeArea(

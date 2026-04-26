@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colors.dart';
 import '../../../providers/providers.dart';
@@ -58,7 +58,7 @@ class NewsletterWidget extends ConsumerWidget {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                     SizedBox(height: 8),
                     Text('Wird jeden Freitag via n8n generiert.',
-                      style: TextStyle(fontSize: 12, color: Colors.white45, height: 1.5)),
+                      style: TextStyle(fontSize: 12, color: AppColors.white45, height: 1.5)),
                   ],
                 );
               }
@@ -73,7 +73,7 @@ class NewsletterWidget extends ConsumerWidget {
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   const SizedBox(height: 8),
                   Text('$count Empfehlungen diese Woche',
-                    style: const TextStyle(fontSize: 12, color: Colors.white45, height: 1.5)),
+                    style: TextStyle(fontSize: 12, color: AppColors.white45, height: 1.5)),
                   if (items.isNotEmpty) ...[
                     const Spacer(),
                     Column(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/colors.dart';
@@ -50,7 +50,7 @@ class _NewsletterScreenState extends ConsumerState<NewsletterScreen> {
               const SizedBox(height:10),
               Text('KW ${week + 1}', style: const TextStyle(fontSize:22, fontWeight:FontWeight.w800, letterSpacing:-0.5)),
               const SizedBox(height:6),
-              Text('${newsletters.length} Ausgaben im Archiv', style: const TextStyle(fontSize:13, color:Colors.white40)),
+              Text('${newsletters.length} Ausgaben im Archiv', style: TextStyle(fontSize:13, color:AppColors.white40)),
             ]),
           );
         },
@@ -104,9 +104,9 @@ class _NewsletterScreenState extends ConsumerState<NewsletterScreen> {
                     const SizedBox(width:12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(title, style: const TextStyle(fontSize:14, fontWeight:FontWeight.w600)),
-                      Text('$date · $count Empfehlungen', style: const TextStyle(fontSize:11, color:Colors.white35)),
+                      Text('$date · $count Empfehlungen', style: TextStyle(fontSize:11, color:AppColors.white35)),
                     ])),
-                    const Text('›', style: TextStyle(fontSize:18, color:Colors.white22)),
+                    const Text('›', style: TextStyle(fontSize:18, color:AppColors.white22)),
                   ]),
                 ).animate().fadeIn(delay: Duration(milliseconds: i*80), duration: 300.ms),
               );
@@ -170,7 +170,7 @@ class _NewsletterScreenState extends ConsumerState<NewsletterScreen> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(name, style: const TextStyle(fontSize:16, fontWeight:FontWeight.w700, letterSpacing:-0.3)),
                     const SizedBox(height:4),
-                    Text(type, style: const TextStyle(fontSize:12, color:Colors.white40)),
+                    Text(type, style: TextStyle(fontSize:12, color:AppColors.white40)),
                   ])),
                 ])).animate().fadeIn(delay: Duration(milliseconds: i*60), duration: 300.ms));
           })),

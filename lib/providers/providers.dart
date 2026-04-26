@@ -40,7 +40,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final loggedIn = await AuthService.instance.isLoggedIn;
     if (loggedIn) {
       try {
-        await _refreshIfNeeded();
+        await refreshIfNeeded();
         final user = await ApiService.instance.getMe();
         state = AuthState(isLoggedIn: true, user: user);
       } catch (_) {
