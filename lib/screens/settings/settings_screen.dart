@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/colors.dart';
 import '../../providers/providers.dart';
 import '../../services/auth_service.dart';
@@ -160,6 +161,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         final i=e.key; final s=e.value;
         return _row(s.$1,'',Row(children:[StatusDot(online:s.$3),const SizedBox(width:6),Text(s.$3?'Verbunden':'Offline',style:const TextStyle(fontSize:11,color:Colors.white38))]),last:i==_integrations.length-1);
       }).toList())),
+      if (isAdmin)
+        _section('Backend Verwaltung', Column(children: [
+          _row(
+            'Plugin Manager',
+            'Plugins konfigurieren & aktivieren',
+            GlassCard(
+              borderRadius: 10,
+              weight: GlassWeight.thin,
+              onTap: () async {
+                final base = await AuthService.instance.getBaseUrl();
+                final uri = Uri.parse('$base/admin');
+                if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              child: Text('Öffnen ›', style: TextStyle(fontSize: 11, color: AppColors.violet)),
+            ),
+            last: true,
+          ),
+        ])),
       _section('App',Column(children:[
         _row('Version','Family Hub v2.0',const Text('Aktuell',style:TextStyle(fontSize:12,color:Colors.white30))),
         _row('Flutter Build','iOS & Android',GlassCard(borderRadius:10,weight:GlassWeight.thin,padding:const EdgeInsets.symmetric(horizontal:12,vertical:5),child:const Text('Build ›',style:TextStyle(fontSize:11,color:Colors.white50))),last:true),

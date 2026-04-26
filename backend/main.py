@@ -18,11 +18,14 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.requests import Request
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -85,6 +88,13 @@ class PushSubModel(Base):
     username   = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class PluginConfigModel(Base):
+    __tablename__ = "plugin_configs"
+    name        = Column(String, primary_key=True, index=True)
+    enabled     = Column(Boolean, default=False)
+    config_json = Column(Text, default="{}")
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -122,6 +132,11 @@ def get_current_user(token: str = Depends(oauth2), db: Session = Depends(get_db)
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def require_admin(user: UserModel = Depends(get_current_user)) -> UserModel:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin required")
+    return user
+
 # ─── Pydantic schemas ─────────────────────────────────────────────────────────
 class Token(BaseModel):
     access_token: str
@@ -143,6 +158,18 @@ class UserCreate(BaseModel):
     email: str
     full_name: Optional[str] = None
     password: str
+
+class PluginToggleBody(BaseModel):
+    enabled: bool
+
+class PluginConfigBody(BaseModel):
+    config: dict
+
+# ─── Plugin Registry ──────────────────────────────────────────────────────────
+from plugin_registry import registry as plugin_registry
+
+# ─── Templates ────────────────────────────────────────────────────────────────
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 @asynccontextmanager
@@ -410,6 +437,51 @@ async def uptime_kuma_webhook(data: dict, db: Session = Depends(get_db)):
         ))
 
     return {"received": True}
+
+# ─── Admin UI ────────────────────────────────────────────────────────────────
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_ui(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+# ─── Plugin API ───────────────────────────────────────────────────────────────
+@app.get("/api/plugins")
+async def list_plugins(
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return plugin_registry.list_all(db)
+
+@app.put("/api/plugins/{name}/toggle")
+async def toggle_plugin(
+    name: str,
+    body: PluginToggleBody,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    result = plugin_registry.set_enabled(db, name, body.enabled)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+@app.put("/api/plugins/{name}/config")
+async def update_plugin_config(
+    name: str,
+    body: PluginConfigBody,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    result = plugin_registry.save_config(db, name, body.config)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+@app.post("/api/plugins/{name}/test")
+async def test_plugin(
+    name: str,
+    _user: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return await plugin_registry.test_plugin(db, name)
 
 # ─── Health ───────────────────────────────────────────────────────────────────
 @app.get("/")
