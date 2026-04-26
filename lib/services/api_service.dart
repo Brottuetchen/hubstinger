@@ -80,6 +80,13 @@ class ApiService {
       (await _get('/api/jellyfin/recently-added?days=$days&limit=$limit'))
           as Map<String, dynamic>;
 
+  Future<String> jellyfinImageUrl(String itemId, {int width = 200}) async {
+    final base = await _base();
+    return '$base/api/jellyfin/image/$itemId?width=$width';
+  }
+
+  Future<Map<String, String>> imageHeaders() => _headers();
+
   // ── Stats ──────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getStats() async =>

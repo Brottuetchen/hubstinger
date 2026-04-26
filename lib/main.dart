@@ -6,6 +6,7 @@ import 'core/constants/colors.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/providers.dart';
 import 'screens/auth/login_screen.dart';
+import 'services/push_service.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/services/services_screen.dart';
 import 'screens/newsletter/newsletter_screen.dart';
@@ -56,6 +57,9 @@ class _AuthGate extends ConsumerWidget {
     }
 
     if (!auth.isLoggedIn) return const LoginScreen();
+
+    // Initialize push notifications after successful login (fails silently without Firebase).
+    PushService.instance.init();
 
     return const MainShell();
   }

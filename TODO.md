@@ -35,8 +35,8 @@
 - [x] **Widget Layout Persistence** – SharedPreferences, überlebt App-Neustart
 - [x] **Echte Jellyfin Sessions** verdrahten → Now Streaming Widget (via Riverpod Provider)
 - [x] **Echte Recently Added** verdrahten → Jellyfin Widget (via Riverpod Provider)
-- [ ] **TMDB Poster** laden → `cached_network_image` nutzen
-- [ ] **Push Notifications** – `firebase_messaging` initialisieren, beim Backend registrieren
+- [x] **TMDB Poster** laden → Jellyfin Image-Proxy `/api/jellyfin/image/{id}` + `cached_network_image`
+- [x] **Push Notifications** – `firebase_messaging` initialisiert, FCM Token-Registrierung beim Backend (`/api/push/subscribe-fcm`), graceful fallback ohne Firebase
 - [ ] **iPad Sidebar Navigation** – Tab-Wechsel verdrahten
 - [ ] **App Icon** – echtes Icon erstellen (192x192, 512x512)
 - [ ] **Splash Screen** – Loading Screen beim Start
@@ -74,7 +74,7 @@
 ### UX
 - [ ] **Dark/Light Mode Toggle** – aktuell nur Dark
 - [ ] **Haptic Feedback** beim Widget bearbeiten
-- [ ] **Pull to Refresh** auf allen Screens
+- [x] **Pull to Refresh** auf Home Screen (invalidiert alle Providers)
 - [ ] **Onboarding Flow** – Server URL Setup beim ersten Start
 - [ ] **Deep Links** – Push Notification öffnet richtigen Screen
 
@@ -90,9 +90,10 @@
 - [ ] **Play Store** – Google Developer Account (25€ einmalig)
 
 ### Plugin System (Community)
-- [ ] **Plugin Interface** finalisieren (`BasePlugin` + `NewsletterBlock`)
-- [ ] **Plugin Registry** – Plugins aktivieren/deaktivieren per UI
-- [ ] **Plugin Config UI** – API Keys per Widget eintragen
+- [x] **Plugin Interface** finalisiert (`BasePlugin` ABC + `config_schema` + `get_newsletter_block`)
+- [x] **Plugin Registry** – Plugins aktivieren/deaktivieren per Web-Admin-UI (`/admin`)
+- [x] **Plugin Config UI** – API Keys über Admin-Panel konfigurierbar
+- [x] **Eingebaute Plugins**: Sonarr, Radarr, Proxmox
 - [ ] **Community Plugins Repo** anlegen
 - [ ] **Dokumentation** für Plugin-Entwickler
 

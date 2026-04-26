@@ -119,9 +119,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : _buildPhoneLayout();
   }
 
+  Future<void> _refresh() async {
+    ref.invalidate(sessionsProvider);
+    ref.invalidate(recentlyAddedProvider);
+    ref.invalidate(statsProvider);
+    // Let providers settle
+    await Future.delayed(const Duration(milliseconds: 400));
+  }
+
   // ── Phone Layout ────────────────────────────────────────────────────────────
   Widget _buildPhoneLayout() {
-    return CustomScrollView(
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      color: AppColors.violet,
+      backgroundColor: const Color(0xFF12141F),
+      child: CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
         SliverPadding(
@@ -152,7 +164,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ],
-    );
+    ));
   }
 
   // ── iPad Layout ─────────────────────────────────────────────────────────────

@@ -88,6 +88,12 @@ class PushSubModel(Base):
     username   = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class FcmTokenModel(Base):
+    __tablename__ = "fcm_tokens"
+    token      = Column(String, primary_key=True)
+    username   = Column(String, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class PluginConfigModel(Base):
     __tablename__ = "plugin_configs"
     name        = Column(String, primary_key=True, index=True)
@@ -275,6 +281,25 @@ async def send_notification(payload: PushPayload, db: Session = Depends(get_db))
     db.commit()
     return results
 
+class FcmSubscribeBody(BaseModel):
+    fcm_token: str
+
+@app.post("/api/push/subscribe-fcm")
+async def subscribe_fcm(
+    body: FcmSubscribeBody,
+    user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Register an FCM device token for native push notifications."""
+    existing = db.query(FcmTokenModel).filter(FcmTokenModel.token == body.fcm_token).first()
+    if existing:
+        existing.username  = user.username
+        existing.updated_at = datetime.utcnow()
+    else:
+        db.add(FcmTokenModel(token=body.fcm_token, username=user.username))
+    db.commit()
+    return {"status": "registered"}
+
 # ─── Jellyfin ─────────────────────────────────────────────────────────────────
 @app.get("/api/jellyfin/sessions")
 async def jellyfin_sessions():
@@ -316,13 +341,39 @@ async def recently_added(days: int = 7, limit: int = 10):
             )
             data = r.json()
             return {"items": [
-                {"id": i.get("Id"), "title": i.get("Name"),
-                 "type": i.get("Type"), "tmdb_id": i.get("ProviderIds", {}).get("Tmdb")}
+                {
+                    "id":      i.get("Id"),
+                    "title":   i.get("Name"),
+                    "type":    i.get("Type"),
+                    "tmdb_id": i.get("ProviderIds", {}).get("Tmdb"),
+                    "added":   (i.get("DateCreated") or "")[:10],
+                    "has_image": bool(i.get("ImageTags", {}).get("Primary")),
+                }
                 for i in data.get("Items", [])
             ]}
     except Exception as e:
         logger.error(f"Jellyfin recently-added error: {e}")
         return {"items": [], "error": str(e)}
+
+@app.get("/api/jellyfin/image/{item_id}")
+async def jellyfin_image(item_id: str, width: int = 200):
+    """Proxy Jellyfin primary image so the app doesn't need the internal Jellyfin URL."""
+    from fastapi.responses import Response as FastAPIResponse
+    if not JELLYFIN_TOKEN or not JELLYFIN_URL:
+        raise HTTPException(status_code=503, detail="Jellyfin not configured")
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{JELLYFIN_URL}/Items/{item_id}/Images/Primary",
+            headers={"X-Emby-Token": JELLYFIN_TOKEN},
+            params={"fillWidth": width, "quality": 90},
+        )
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail="Image not found")
+        return FastAPIResponse(
+            content=r.content,
+            media_type=r.headers.get("content-type", "image/jpeg"),
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
 # ─── TMDB ─────────────────────────────────────────────────────────────────────
 @app.get("/api/tmdb/movie/{tmdb_id}")
