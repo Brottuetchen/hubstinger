@@ -1,6 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:ui';
+import 'core/constants/app_icons.dart';
 import 'core/constants/colors.dart';
 import 'core/theme/app_theme.dart';
 import 'package:app_links/app_links.dart';
@@ -12,8 +14,6 @@ import 'screens/home/home_screen.dart';
 import 'screens/services/services_screen.dart';
 import 'screens/newsletter/newsletter_screen.dart';
 import 'screens/settings/settings_screen.dart';
-import 'dart:ui';
-import 'core/constants/colors.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -123,10 +123,10 @@ class MainShell extends ConsumerWidget {
   ];
 
   static const _tabs = [
-    ('⌂', 'Home'),
-    ('◈', 'Services'),
-    ('✉', 'Newsletter'),
-    ('⚙', 'Settings'),
+    (AppIcons.home, 'Home'),
+    (AppIcons.services, 'Services'),
+    (AppIcons.newsletter, 'Newsletter'),
+    (AppIcons.settings, 'Settings'),
   ];
 
   @override
@@ -143,7 +143,9 @@ class MainShell extends ConsumerWidget {
             child: _screens[tab],
           ),
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: _BottomBar(
               currentIndex: tab,
               tabs: _tabs,
@@ -178,15 +180,19 @@ class _BackgroundOrbsState extends State<_BackgroundOrbs>
   @override
   void initState() {
     super.initState();
-    _controllers = _orbs.map((o) => AnimationController(
-      vsync: this,
-      duration: Duration(seconds: o.$5.toInt()),
-    )..repeat(reverse: true)).toList();
+    _controllers = _orbs
+        .map((o) => AnimationController(
+              vsync: this,
+              duration: Duration(seconds: o.$5.toInt()),
+            )..repeat(reverse: true))
+        .toList();
   }
 
   @override
   void dispose() {
-    for (final c in _controllers) { c.dispose(); }
+    for (final c in _controllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -206,7 +212,8 @@ class _BackgroundOrbsState extends State<_BackgroundOrbs>
                 left: o.$3 != double.infinity ? o.$3 - 30 * t : null,
                 right: o.$3 == double.infinity ? 0 : null,
                 child: Container(
-                  width: o.$1, height: o.$1,
+                  width: o.$1,
+                  height: o.$1,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
@@ -231,7 +238,7 @@ class _BackgroundOrbsState extends State<_BackgroundOrbs>
 // ── Bottom Tab Bar ────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   final int currentIndex;
-  final List<(String, String)> tabs;
+  final List<(IconData, String)> tabs;
   final ValueChanged<int> onTap;
 
   const _BottomBar({
@@ -252,7 +259,7 @@ class _BottomBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.11),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border(
+            border: const Border(
               top: BorderSide(color: AppColors.white22, width: 1),
             ),
           ),
@@ -264,7 +271,8 @@ class _BottomBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(2),
@@ -291,31 +299,46 @@ class _BottomBar extends StatelessWidget {
                                 width: active ? 36 : 0,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(2),
-                                  gradient: LinearGradient(
+                                  gradient: const LinearGradient(
                                     colors: [AppColors.violet, AppColors.cyan],
                                   ),
-                                  boxShadow: active ? [
-                                    BoxShadow(color: AppColors.violet.withOpacity(0.8), blurRadius: 12),
-                                  ] : null,
+                                  boxShadow: active
+                                      ? [
+                                          BoxShadow(
+                                              color: AppColors.violet
+                                                  .withOpacity(0.8),
+                                              blurRadius: 12),
+                                        ]
+                                      : null,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 200),
                                 style: TextStyle(
-                                  fontSize: active ? 24 : 21,
-                                  shadows: active ? [
-                                    Shadow(color: AppColors.violet.withOpacity(0.9), blurRadius: 14),
-                                  ] : null,
+                                  shadows: active
+                                      ? [
+                                          Shadow(
+                                              color: AppColors.violet
+                                                  .withOpacity(0.9),
+                                              blurRadius: 14),
+                                        ]
+                                      : null,
                                 ),
-                                child: Text(t.$1),
+                                child: Icon(
+                                  t.$1,
+                                  size: active ? 24 : 21,
+                                  color: active ? Colors.white : Colors.white54,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 200),
                                 style: TextStyle(
                                   fontSize: 10,
-                                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                                  fontWeight: active
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
                                   color: active ? Colors.white : Colors.white30,
                                   letterSpacing: 0.3,
                                 ),

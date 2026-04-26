@@ -28,17 +28,32 @@ class ApiService {
   Future<dynamic> _get(String path, {bool auth = true}) async {
     final base = await _base();
     final uri = Uri.parse('$base$path');
-    final res = await http.get(uri, headers: await _headers(auth: auth))
+    final res = await http
+        .get(uri, headers: await _headers(auth: auth))
         .timeout(const Duration(seconds: 10));
     return _handle(res);
   }
 
-  Future<dynamic> _post(String path, Map<String, dynamic> body, {bool auth = true}) async {
+  Future<dynamic> _post(String path, Map<String, dynamic> body,
+      {bool auth = true}) async {
     final base = await _base();
     final uri = Uri.parse('$base$path');
-    final res = await http.post(uri,
-        headers: await _headers(auth: auth),
-        body: jsonEncode(body))
+    final res = await http
+        .post(uri, headers: await _headers(auth: auth), body: jsonEncode(body))
+        .timeout(const Duration(seconds: 15));
+    return _handle(res);
+  }
+
+  Future<dynamic> _put(String path, Map<String, dynamic> body,
+      {bool auth = true}) async {
+    final base = await _base();
+    final uri = Uri.parse('$base$path');
+    final res = await http
+        .put(
+          uri,
+          headers: await _headers(auth: auth),
+          body: jsonEncode(body),
+        )
         .timeout(const Duration(seconds: 15));
     return _handle(res);
   }
@@ -53,7 +68,9 @@ class ApiService {
       AuthService.instance.deleteToken();
     }
     String msg = body;
-    try { msg = (jsonDecode(body) as Map)['detail'] ?? body; } catch (_) {}
+    try {
+      msg = (jsonDecode(body) as Map)['detail'] ?? body;
+    } catch (_) {}
     throw ApiException(res.statusCode, msg);
   }
 
@@ -62,10 +79,12 @@ class ApiService {
   Future<String> login(String username, String password) async {
     final base = await _base();
     final uri = Uri.parse('$base/api/auth/token');
-    final res = await http.post(uri,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'username': username, 'password': password})
-        .timeout(const Duration(seconds: 10));
+    final res = await http.post(uri, headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }, body: {
+      'username': username,
+      'password': password
+    }).timeout(const Duration(seconds: 10));
     final data = _handle(res) as Map<String, dynamic>;
     final token = data['access_token'] as String;
     await AuthService.instance.saveToken(token);
@@ -87,7 +106,8 @@ class ApiService {
   Future<Map<String, dynamic>> getSessions() async =>
       (await _get('/api/jellyfin/sessions')) as Map<String, dynamic>;
 
-  Future<Map<String, dynamic>> getRecentlyAdded({int days = 7, int limit = 10}) async =>
+  Future<Map<String, dynamic>> getRecentlyAdded(
+          {int days = 7, int limit = 10}) async =>
       (await _get('/api/jellyfin/recently-added?days=$days&limit=$limit'))
           as Map<String, dynamic>;
 
@@ -103,6 +123,20 @@ class ApiService {
   Future<Map<String, dynamic>> getStats() async =>
       (await _get('/api/stats')) as Map<String, dynamic>;
 
+  Future<Map<String, dynamic>> getAppBootstrap() async =>
+      (await _get('/api/app/bootstrap')) as Map<String, dynamic>;
+
+  Future<List<Map<String, dynamic>>> saveDashboardLayout(
+    List<Map<String, dynamic>> slots,
+  ) async {
+    final data = (await _put('/api/dashboard/layout', {'slots': slots}))
+        as Map<String, dynamic>;
+    return ((data['layout'] as List?) ?? [])
+        .cast<Map>()
+        .map((slot) => slot.cast<String, dynamic>())
+        .toList();
+  }
+
   // ── Newsletter ─────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getNewsletterArchive() async =>
@@ -117,7 +151,9 @@ class ApiService {
     try {
       final data = await _get('/api/vapid-public-key', auth: false);
       return (data as Map<String, dynamic>)['publicKey'] as String?;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── OIDC ───────────────────────────────────────────────────────────────────

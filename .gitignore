@@ -20,6 +20,7 @@ backend/vapid_keys.json
 
 # VS Code
 .vscode/*.log
+.claude/
 
 # iOS/Android
 ios/Pods/

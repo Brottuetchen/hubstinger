@@ -1,40 +1,34 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/colors.dart';
 import '../../../models/models.dart';
 import '../../../widgets/glass/glass_card.dart';
 
-const Map<String, Map<String, dynamic>> widgetDefs = {
-  'streaming':     {'label': 'Jetzt gestreamt',  'icon': '▶️', 'size': WidgetSize.large},
-  'newsletter':    {'label': 'Newsletter',        'icon': '✉️', 'size': WidgetSize.tall},
-  'recently':      {'label': 'Neu in Jellyfin',  'icon': '🎬', 'size': WidgetSize.large},
-  'watchtime':     {'label': 'Watchtime',         'icon': '📊', 'size': WidgetSize.large},
-  'containers':    {'label': 'Container',         'icon': '🐳', 'size': WidgetSize.small},
-  'streams_count': {'label': 'Aktive Streams',    'icon': '📡', 'size': WidgetSize.small},
-  'uptime':        {'label': 'Uptime Kuma',       'icon': '✅', 'size': WidgetSize.small},
-  'nas':           {'label': 'NAS Speicher',      'icon': '💾', 'size': WidgetSize.small},
-  'proxmox':       {'label': 'Proxmox CPU',       'icon': '🖥️', 'size': WidgetSize.small},
-  'requests':      {'label': 'Jellyseerr',        'icon': '🎥', 'size': WidgetSize.small},
-  'sonarr':        {'label': 'Sonarr Upcoming',   'icon': '📺', 'size': WidgetSize.small},
-  'radarr':        {'label': 'Radarr Missing',    'icon': '🎬', 'size': WidgetSize.small},
-  'immich':        {'label': 'Immich Fotos',      'icon': '📷', 'size': WidgetSize.small},
-  'navidrome':     {'label': 'Navidrome',         'icon': '🎵', 'size': WidgetSize.small},
-};
-
 class WidgetEditorSheet extends StatelessWidget {
   final List<String> activeIds;
-  final Function(WidgetSlot) onAdd;
+  final List<Map<String, dynamic>> widgetCatalog;
+  final void Function(WidgetSlot) onAdd;
 
   const WidgetEditorSheet({
     super.key,
     required this.activeIds,
+    required this.widgetCatalog,
     required this.onAdd,
   });
 
+  WidgetSize _parseSize(String? value) {
+    return WidgetSize.values.firstWhere(
+      (size) => size.name == value,
+      orElse: () => WidgetSize.small,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final available = widgetDefs.entries
-        .where((e) => !activeIds.contains(e.key))
+    final available = widgetCatalog
+        .where((entry) => !activeIds.contains(entry['id']))
         .toList();
 
     return GlassCard(
@@ -47,10 +41,10 @@ class WidgetEditorSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle
             Center(
               child: Container(
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
                   color: Colors.white24,
                   borderRadius: BorderRadius.circular(2),
@@ -58,53 +52,95 @@ class WidgetEditorSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Widget hinzufügen',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+            const Text(
+              'Widget hinzufuegen',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
             const SizedBox(height: 6),
-            const Text('Tippe auf ein Widget um es hinzuzufügen',
-              style: TextStyle(fontSize: 13, color: AppColors.white40)),
+            const Text(
+              'Tippe auf ein Widget, um es hinzuzufuegen.',
+              style: TextStyle(fontSize: 13, color: AppColors.white40),
+            ),
             const SizedBox(height: 20),
             if (available.isEmpty)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Text('Alle Widgets sind aktiv ✓',
-                    style: TextStyle(color: AppColors.white35, fontSize: 14)),
+                  child: Text(
+                    'Alle verfuegbaren Widgets sind bereits aktiv.',
+                    style: TextStyle(color: AppColors.white35, fontSize: 14),
+                  ),
                 ),
               )
             else
               ...available.asMap().entries.map((entry) {
-                final i = entry.key;
-                final e = entry.value;
-                final def = e.value;
+                final index = entry.key;
+                final widgetDef = entry.value;
+                final size = _parseSize(widgetDef['default_size'] as String?);
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: GlassCard(
                     borderRadius: 20,
                     weight: GlassWeight.mid,
                     onTap: () {
-                      onAdd(WidgetSlot(id: e.key, size: def['size'] as WidgetSize));
+                      onAdd(WidgetSlot(
+                        id: widgetDef['id'] as String,
+                        size: size,
+                      ));
                       Navigator.pop(context);
                     },
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     child: Row(
                       children: [
-                        Text(def['icon'] as String, style: const TextStyle(fontSize: 24)),
+                        Icon(
+                          AppIcons.resolve(widgetDef['icon_key'] as String?),
+                          size: 24,
+                          color: Colors.white70,
+                        ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(def['label'] as String,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text('Größe: ${(def['size'] as WidgetSize).name}',
-                              style: TextStyle(fontSize: 11, color: AppColors.white40)),
-                          ]),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widgetDef['label'] as String? ?? 'Widget',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                'Groesse: ${size.name}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.white40,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text('+', style: TextStyle(fontSize: 22, color: AppColors.cyan)),
+                        const Icon(
+                          Icons.add_rounded,
+                          size: 22,
+                          color: AppColors.cyan,
+                        ),
                       ],
                     ),
-                  ).animate()
-                    .fadeIn(delay: Duration(milliseconds: i * 50), duration: 300.ms)
-                    .slideX(begin: 0.05, end: 0),
+                  )
+                      .animate()
+                      .fadeIn(
+                        delay: Duration(milliseconds: index * 50),
+                        duration: 300.ms,
+                      )
+                      .slideX(begin: 0.05, end: 0),
                 );
               }),
           ],
