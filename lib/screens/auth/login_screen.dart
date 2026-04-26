@@ -1,7 +1,8 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/constants/app_icons.dart';
 import '../../core/constants/colors.dart';
 import '../../providers/providers.dart';
 import '../../services/api_service.dart';
@@ -18,11 +19,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  final _urlCtrl      = TextEditingController();
+  final _urlCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _showServerField = false;
-  bool _oidcAvailable   = false;
-  bool _oidcLoading     = false;
+  bool _oidcAvailable = false;
+  bool _oidcLoading = false;
 
   @override
   void initState() {
@@ -43,8 +44,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final health = await ApiService.instance.checkHealth();
       if (mounted) {
-        setState(() => _oidcAvailable =
-            health['oidc_configured'] == true);
+        setState(() => _oidcAvailable = health['oidc_configured'] == true);
       }
     } catch (_) {}
   }
@@ -77,7 +77,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     await AuthService.instance.saveBaseUrl(url);
 
-    final ok = await ref.read(authProvider.notifier)
+    final ok = await ref
+        .read(authProvider.notifier)
         .login(_usernameCtrl.text.trim(), _passwordCtrl.text);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -99,11 +100,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final oidcUrl = await ApiService.instance.getOidcUrl();
       if (oidcUrl == null) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('OIDC nicht konfiguriert'),
-          backgroundColor: AppColors.amber,
-          behavior: SnackBarBehavior.floating,
-        ));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('OIDC nicht konfiguriert'),
+            backgroundColor: AppColors.amber,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
         return;
       }
       final uri = Uri.parse(oidcUrl);
@@ -111,11 +114,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Fehler: $e'),
-        backgroundColor: AppColors.rose,
-        behavior: SnackBarBehavior.floating,
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Fehler: $e'),
+          backgroundColor: AppColors.rose,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     } finally {
       if (mounted) setState(() => _oidcLoading = false);
     }
@@ -142,28 +147,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   // Logo
                   Center(
                     child: Container(
-                      width: 80, height: 80,
+                      width: 80,
+                      height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [AppColors.violet, AppColors.cyan]),
-                        boxShadow: [BoxShadow(
-                          color: AppColors.violet.withOpacity(0.5),
-                          blurRadius: 40)],
+                        gradient: const LinearGradient(
+                            colors: [AppColors.violet, AppColors.cyan]),
+                        boxShadow: [
+                          BoxShadow(
+                              color: AppColors.violet.withOpacity(0.5),
+                              blurRadius: 40)
+                        ],
                       ),
-                      child: const Center(child: Text('⌂',
-                        style: TextStyle(fontSize: 36))),
+                      child: const Center(
+                        child:
+                            Icon(AppIcons.login, size: 36, color: Colors.white),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
                   const Text('Family Hub',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800,
-                        letterSpacing: -1)),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1)),
                   const SizedBox(height: 6),
                   const Text('Dein Homelab Dashboard',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, color: Colors.white38)),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 15, color: Colors.white38)),
 
                   const SizedBox(height: 56),
 
@@ -182,16 +194,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const Icon(Icons.dns_outlined,
                                 size: 14, color: Colors.white38),
                             const SizedBox(width: 6),
-                            Expanded(child: Text(
-                              _urlCtrl.text.isNotEmpty
-                                  ? _urlCtrl.text : 'Server-URL',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.white38),
-                              overflow: TextOverflow.ellipsis)),
+                            Expanded(
+                                child: Text(
+                                    _urlCtrl.text.isNotEmpty
+                                        ? _urlCtrl.text
+                                        : 'Server-URL',
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.white38),
+                                    overflow: TextOverflow.ellipsis)),
                             Icon(
-                              _showServerField
-                                  ? Icons.expand_less : Icons.expand_more,
-                              size: 16, color: Colors.white30),
+                                _showServerField
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 16,
+                                color: Colors.white30),
                           ]),
                         ),
                         if (_showServerField) ...[
@@ -214,35 +230,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             rimColor: AppColors.cyan.withOpacity(0.5),
                             tint: AppColors.cyan.withOpacity(0.12),
                             onTap: (_oidcLoading || loading)
-                                ? null : _loginWithAuthentik,
+                                ? null
+                                : _loginWithAuthentik,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Center(child: _oidcLoading
-                              ? const SizedBox(
-                                  width: 18, height: 18,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text('🔑',
-                                        style: TextStyle(fontSize: 16)),
-                                    const SizedBox(width: 8),
-                                    Text('Mit Authentik anmelden',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.cyan)),
-                                  ])),
+                            child: Center(
+                                child: _oidcLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white))
+                                    : const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                            Icon(
+                                              AppIcons.authentik,
+                                              size: 16,
+                                              color: Colors.white,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text('Mit Authentik anmelden',
+                                                style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.cyan)),
+                                          ])),
                           ),
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
                             child: Row(children: [
                               Expanded(child: Divider(color: Colors.white12)),
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: Text('oder',
-                                    style: TextStyle(
-                                        fontSize: 11, color: Colors.white30))),
+                                  padding: EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text('oder',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white30))),
                               Expanded(child: Divider(color: Colors.white12)),
                             ]),
                           ),
@@ -265,10 +290,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           autofillHints: const [AutofillHints.password],
                           suffix: IconButton(
                             icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: Colors.white38, size: 20),
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: Colors.white38,
+                                size: 20),
                             onPressed: () => setState(
                                 () => _obscurePassword = !_obscurePassword),
                           ),
@@ -284,15 +310,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           tint: AppColors.violet.withOpacity(0.3),
                           onTap: loading ? null : _login,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: loading
-                            ? const SizedBox(
-                                width: 20, height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : const Text('Anmelden',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700))),
+                          child: Center(
+                              child: loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white))
+                                  : const Text('Anmelden',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700))),
                         ),
                       ],
                     ),
@@ -300,8 +328,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   const SizedBox(height: 40),
                   const Text('Family Hub · Self-hosted',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11, color: AppColors.white18)),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: AppColors.white18)),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -345,8 +373,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               prefixIcon: Icon(icon, color: Colors.white30, size: 20),
               suffixIcon: suffix,
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
         ),
@@ -357,23 +385,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildOrbs() {
     return Positioned.fill(
       child: Stack(children: [
-        Positioned(top: -100, left: -100,
-          child: _orb(500, AppColors.bgOrb1)),
-        Positioned(bottom: 0, right: -80,
-          child: _orb(400, AppColors.bgOrb2)),
-        Positioned(top: 200, right: -50,
-          child: _orb(300, AppColors.bgOrb4)),
+        Positioned(top: -100, left: -100, child: _orb(500, AppColors.bgOrb1)),
+        Positioned(bottom: 0, right: -80, child: _orb(400, AppColors.bgOrb2)),
+        Positioned(top: 200, right: -50, child: _orb(300, AppColors.bgOrb4)),
       ]),
     );
   }
 
   Widget _orb(double size, Color color) {
     return Container(
-      width: size, height: size,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: [color, Colors.transparent], stops: const [0, 0.7]),
+            colors: [color, Colors.transparent], stops: const [0, 0.7]),
       ),
       child: ImageFiltered(
         imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),

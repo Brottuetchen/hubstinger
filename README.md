@@ -9,7 +9,7 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 ## Features
 
 - 🪟 **Liquid Glass UI** – visionOS-inspired dark design system
-- 🧩 **Widget Grid** – iOS-style home screen, drag-to-reorder, persisted locally
+- 🧩 **Widget Grid** – iOS-style home screen, drag-to-reorder, persisted per user in the backend
 - 📺 **Now Streaming** – live Jellyfin session overview
 - 📷 **Media Posters** – Jellyfin thumbnails via built-in image proxy
 - 📬 **Weekly Newsletter** – auto-generated via n8n + TMDB + Ollama
@@ -98,10 +98,19 @@ flutter run
 Beim ersten Start erscheint ein **Server-URL**-Eingabefeld.
 Trage dort deine Backend-URL ein (`http://192.168.1.x:8080` lokal oder `https://deine-domain.com`).
 
-### 3 – Plugins konfigurieren
+### 3 – Backend im Admin-UI konfigurieren
 
 `http://localhost:8080/admin` öffnen, mit Admin-Zugangsdaten einloggen,
-dann Plugins aktivieren und API-Keys eintragen (Sonarr, Immich, Jellyseerr, …).
+dann zuerst die **Core-Integrationen** konfigurieren:
+
+- `Jellyfin`
+- `TMDB`
+- `Ollama`
+- `Authentik`
+- `Web Push / VAPID`
+
+Danach kannst du im selben UI die optionalen Plugins aktivieren und mit URL/API-Keys befüllen
+(`Sonarr`, `Immich`, `Jellyseerr`, `Proxmox`, …).
 
 ---
 
@@ -115,8 +124,8 @@ dann Plugins aktivieren und API-Keys eintragen (Sonarr, Immich, Jellyseerr, …)
 | Ollama | KI-Zusammenfassungen (Newsletter) | optional |
 | n8n | Wöchentlicher Newsletter-Cron | optional |
 
-Alle anderen Services (Sonarr, Radarr, Proxmox, Immich, Nextcloud …) werden
-ausschließlich über das Admin-Plugin-System konfiguriert – kein Code nötig.
+Alle Integrationen und Plugins werden über das Admin-UI konfiguriert.
+Bestehende `.env`-Werte dienen nur noch als Start-/Fallback-Migration.
 
 ---
 
@@ -195,15 +204,15 @@ Alle Variablen mit Erklärung stehen in `backend/.env.example`.
 | Variable | Beschreibung | Pflicht |
 |----------|-------------|:-------:|
 | `SECRET_KEY` | JWT-Signing-Key (`openssl rand -hex 32`) | ✅ |
-| `JELLYFIN_URL` | Jellyfin-Basis-URL | für Media-Widgets |
-| `JELLYFIN_TOKEN` | Jellyfin API-Token | für Media-Widgets |
-| `TMDB_API_KEY` | TMDB API-Key (kostenlos) | empfohlen |
-| `OLLAMA_URL` | Ollama-Basis-URL | Newsletter-KI |
-| `VAPID_PRIVATE_KEY` | VAPID Private Key | Push Notifications |
-| `VAPID_PUBLIC_KEY` | VAPID Public Key | Push Notifications |
-| `VAPID_EMAIL` | Kontakt-E-Mail für VAPID | Push Notifications |
+| `JELLYFIN_URL` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `JELLYFIN_TOKEN` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `TMDB_API_KEY` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `OLLAMA_URL` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `VAPID_PRIVATE_KEY` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `VAPID_PUBLIC_KEY` | einmaliger Migrations-Fallback für Admin-UI | optional |
+| `VAPID_EMAIL` | einmaliger Migrations-Fallback für Admin-UI | optional |
 
-Alle anderen Services → Admin-Plugin-UI, keine Env-Vars nötig.
+Im laufenden Betrieb pflegst du diese Werte im `/admin`-UI, nicht in der App.
 
 ---
 

@@ -20,8 +20,11 @@ class AuthState {
     this.error,
   });
 
-  AuthState copyWith({bool? isLoggedIn, Map<String, dynamic>? user,
-      bool? isLoading, String? error}) {
+  AuthState copyWith(
+      {bool? isLoggedIn,
+      Map<String, dynamic>? user,
+      bool? isLoading,
+      String? error}) {
     return AuthState(
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       user: user ?? this.user,
@@ -76,7 +79,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } on ApiException catch (e) {
       state = AuthState(
         isLoggedIn: false,
-        error: e.statusCode == 401 ? 'Falscher Benutzername oder Passwort' : e.message,
+        error: e.statusCode == 401
+            ? 'Falscher Benutzername oder Passwort'
+            : e.message,
       );
       return false;
     } catch (_) {
@@ -111,13 +116,15 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
 
 // ── Jellyfin Sessions ─────────────────────────────────────────────────────────
 
-final sessionsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+final sessionsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ApiService.instance.getSessions();
 });
 
 // ── Recently Added ────────────────────────────────────────────────────────────
 
-final recentlyAddedProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+final recentlyAddedProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ApiService.instance.getRecentlyAdded();
 });
 
@@ -127,9 +134,15 @@ final statsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ApiService.instance.getStats();
 });
 
+final appBootstrapProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+  return ApiService.instance.getAppBootstrap();
+});
+
 // ── Newsletter Archive ────────────────────────────────────────────────────────
 
-final newsletterArchiveProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+final newsletterArchiveProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ApiService.instance.getNewsletterArchive();
 });
 
