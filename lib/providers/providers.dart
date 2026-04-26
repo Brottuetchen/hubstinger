@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 
+// ── Tab index (shared between MainShell bottom bar and iPad sidebar) ──────────
+final tabIndexProvider = StateProvider<int>((ref) => 0);
+
 // ── Auth state ────────────────────────────────────────────────────────────────
 
 class AuthState {
@@ -37,6 +40,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final loggedIn = await AuthService.instance.isLoggedIn;
     if (loggedIn) {
       try {
+        await _refreshIfNeeded();
         final user = await ApiService.instance.getMe();
         state = AuthState(isLoggedIn: true, user: user);
       } catch (_) {
@@ -48,12 +52,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Silently renews the JWT if it expires within 2 days.
+  Future<void> refreshIfNeeded() async {
+    final token = await AuthService.instance.getToken();
+    if (token == null) return;
+    final expiry = AuthService.instance.getTokenExpiry(token);
+    if (expiry == null) return;
+    if (expiry.difference(DateTime.now()).inDays < 2) {
+      try {
+        await ApiService.instance.refreshToken();
+      } catch (_) {}
+    }
+  }
+
   Future<bool> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await ApiService.instance.login(username, password);
       final user = await ApiService.instance.getMe();
       state = AuthState(isLoggedIn: true, user: user);
+      // Token just issued – no refresh needed, but schedule check on resume
       return true;
     } on ApiException catch (e) {
       state = AuthState(

@@ -1,199 +1,126 @@
 # Family Hub - TODO
 
-> Letzter Stand: April 2026 · Repo: github.com/Brottuetchen/hubstinger
-> Stand Code: claude/work-through-todos-xWv5P
+> Stand: April 2026 · Branch: `claude/work-through-todos-xWv5P`
 
 ---
 
-## 🔴 KRITISCH – App läuft nicht ohne das
+## 🔴 KRITISCH – vor dem ersten Start erledigen
 
-- [x] **Dart Import-Fehler fixen** – Widget-Dateien aufgeteilt, jede Klasse in eigener Datei
-- [x] **`backend/plugins/__init__.py`** angelegt
-- [x] **API Service** (`lib/services/api_service.dart`) – HTTP-Calls mit JWT-Interceptor
-- [x] **Auth Flow** – Login Screen ✓, Token Storage (flutter_secure_storage) ✓, Logout ✓
-- [ ] **CF Tunnel / NPM** für `hub.t-acc.com` → HTTPS Pflicht für Push
-- [ ] **`.env` befüllen** auf LXC 192.168.188.50 – Jellyfin, TMDB, Jellyseerr Keys
-- [ ] **GitHub Token invalidieren** – den aus dem Chat sofort neu generieren
+- [ ] **`SECRET_KEY` setzen** – `openssl rand -hex 32` → in `.env` eintragen
+- [ ] **Admin-User anlegen** – `python create_admin.py`
+- [ ] **Jellyfin Token** holen – Jellyfin → Dashboard → API Keys → `+`
+- [ ] **CF Tunnel / NPM** konfigurieren – HTTPS Pflicht für Push & OIDC
+- [ ] **`flutter create --org com.yourname --project-name family_hub .`** – einmalig nach Clone
 
 ---
 
-## 🟠 CORE FEATURES – App nutzbar aber unvollständig
+## 🟠 OFFEN – App läuft, aber unvollständig
 
-### Auth & SSO
-- [x] **Login Screen** (Email + Password) als Fallback
-- [ ] **Authentik OAuth2/OIDC** einrichten
-  - [ ] Authentik: neue Application + Provider anlegen (OIDC)
-  - [ ] Redirect URI: `hubstinger://auth/callback`
-  - [ ] Flutter: `flutter_appauth` + `flutter_secure_storage` einbinden
-  - [ ] Backend: OIDC Token Verification gegen Authentik JWKS Endpoint
-  - [ ] `GET /api/auth/oidc/callback` Endpoint im Backend
-- [x] **Token Storage** – JWT sicher gespeichert (flutter_secure_storage)
-- [ ] **Auto-Refresh** – Token renewal im Hintergrund
-- [x] **Logout** – Token invalidieren + secure storage leeren
+### Auth
+- [x] Login Screen mit Username/Passwort
+- [x] JWT Token Storage (flutter_secure_storage)
+- [x] Logout + Token löschen
+- [x] 401 Auto-Logout (ApiService löscht Token bei abgelaufenem JWT)
+- [x] Backend: Authentik OIDC Endpoints (`/api/auth/oidc-url`, `/api/auth/oidc/callback`)
+- [x] Flutter: "Mit Authentik anmelden"-Button + Deep-Link-Handler (`app_links`)
+- [x] **Token Auto-Refresh** – `POST /api/auth/refresh` Backend + Flutter Refresh bei App-Resume & Startup
+- [ ] **Authentik OIDC konfigurieren** – Provider in Authentik anlegen, `.env` befüllen, URL-Scheme in `AndroidManifest.xml` / `Info.plist` eintragen (siehe README)
 
 ### Flutter App
-- [x] **Widget Layout Persistence** – SharedPreferences, überlebt App-Neustart
-- [x] **Echte Jellyfin Sessions** verdrahten → Now Streaming Widget (via Riverpod Provider)
-- [x] **Echte Recently Added** verdrahten → Jellyfin Widget (via Riverpod Provider)
-- [x] **TMDB Poster** laden → Jellyfin Image-Proxy `/api/jellyfin/image/{id}` + `cached_network_image`
-- [x] **Push Notifications** – `firebase_messaging` initialisiert, FCM Token-Registrierung beim Backend (`/api/push/subscribe-fcm`), graceful fallback ohne Firebase
-- [ ] **iPad Sidebar Navigation** – Tab-Wechsel verdrahten
-- [ ] **App Icon** – echtes Icon erstellen (192x192, 512x512)
-- [ ] **Splash Screen** – Loading Screen beim Start
+- [x] Widget Grid mit iOS-Edit-Mode
+- [x] Layout-Persistenz (SharedPreferences)
+- [x] Jellyfin Sessions → StreamingWidget
+- [x] Jellyfin Recently Added → RecentlyWidget (mit Poster-Thumbnails)
+- [x] Pull-to-Refresh auf Home Screen
+- [x] Push Service (FCM-ready stub, registriert Token beim Backend)
+- [x] **iPad Sidebar** – Tab-Wechsel vollständig verdrahtet (tabIndexProvider)
+- [x] **Live Stat Widgets** – containers, proxmox, requests, uptime, nas ziehen echte Werte aus `/api/stats`
+- [x] **Plugin Widgets** – Sonarr, Radarr, Immich, Navidrome im Widget-Editor verfügbar
+- [ ] **App Icon** – Datei `assets/icons/app_icon.png` erstellen (512×512)
+- [ ] **Splash Screen** – Loading-Bild beim Start
 
-### Backend
-- [ ] **Jellyfin Watchtime** – Jellyfin Playback Reporting Plugin installieren
-- [ ] **n8n Newsletter Workflow** – Cron Fr 17:00 → POST `/api/newsletter/generate`
-- [ ] **Uptime Kuma Webhook** – in Uptime Kuma auf `/api/webhook/uptime-kuma` zeigen
-- [ ] **TMDB Key** holen (kostenlos: themoviedb.org/settings/api)
-- [ ] **Ollama testen** – `curl http://192.168.188.110:11434/api/generate`
+### Backend / Infrastruktur
+- [ ] **TMDB Key** – kostenlos unter themoviedb.org/settings/api
+- [ ] **Ollama** testen – `curl http://<ollama-host>:11434/api/generate -d '{"model":"llama3.2","prompt":"test","stream":false}'`
+- [ ] **n8n Workflow** – Cron Fr 17:00 → `POST /api/newsletter/generate`
+- [ ] **Uptime Kuma Webhook** – in Uptime Kuma auf `https://deine-domain.com/api/webhook/uptime-kuma` zeigen
+- [ ] **Jellyfin Watchtime** – Playback Reporting Plugin in Jellyfin installieren
 
 ---
 
-## 🟡 NICE TO HAVE – Deutlich besser mit, aber nicht blocking
-
-### Neue Widgets
-- [ ] **Sonarr Widget** – Upcoming Episodes, Calendar
-- [ ] **Radarr Widget** – Wanted/Missing Movies
-- [ ] **Immich Widget** – Recent Photos, Stats
-- [ ] **Navidrome Widget** – Now Playing, Recently Played
-- [ ] **Grafana Widget** – Embed Dashboard Panel
-- [ ] **Nextcloud Widget** – Kalender Events
+## 🟡 NICE TO HAVE
 
 ### Newsletter
-- [ ] **HTML Mail** via Mailcow SMTP versenden
-- [ ] **Newsletter Vorschau** in der App vor dem Versand
+- [ ] **SMTP Versand** – HTML-Mail via Mailcow / SMTP
+- [ ] **Vorschau in App** – Newsletter vor Versand anzeigen
 - [ ] **Manuell triggern** – Button in Settings
-- [ ] **Empfänger verwalten** – wer bekommt den Newsletter
+- [ ] **Empfänger verwalten** – Admin-UI für Verteiler
 
 ### Services Screen
-- [ ] **Service Details** – Tap öffnet den Service im In-App Browser
-- [ ] **Service Stats** – CPU/RAM direkt vom Service wenn API verfügbar
-- [ ] **Ping/Health Check** live in der App
+- [ ] **Service-Tap** – öffnet Service im In-App Browser
+- [ ] **Live Health-Check** – Ping-Status direkt in der App
 
 ### UX
-- [ ] **Dark/Light Mode Toggle** – aktuell nur Dark
 - [ ] **Haptic Feedback** beim Widget bearbeiten
-- [x] **Pull to Refresh** auf Home Screen (invalidiert alle Providers)
-- [ ] **Onboarding Flow** – Server URL Setup beim ersten Start
 - [ ] **Deep Links** – Push Notification öffnet richtigen Screen
+- [ ] **Dark/Light Mode**
 
 ---
 
-## 🟢 LANGFRISTIG – Public Release
+## 🟢 LANGFRISTIG
 
 ### App Store / Play Store
-- [ ] **Apple Developer Account** (99€/Jahr)
-- [ ] **iOS Signing Certs** in GitHub Secrets hinterlegen
-- [ ] **TestFlight** – Familie einladen
-- [ ] **App Store Connect** – Listing, Screenshots, Beschreibung
-- [ ] **Play Store** – Google Developer Account (25€ einmalig)
+- [ ] Apple Developer Account (99 €/Jahr)
+- [ ] iOS Signing Certs in GitHub Secrets
+- [ ] TestFlight Beta für Familie
+- [ ] App Store Listing (Screenshots, Beschreibung)
+- [ ] Google Play (25 € einmalig)
 
-### Plugin System (Community)
-- [x] **Plugin Interface** finalisiert (`BasePlugin` ABC + `config_schema` + `get_newsletter_block`)
-- [x] **Plugin Registry** – Plugins aktivieren/deaktivieren per Web-Admin-UI (`/admin`)
-- [x] **Plugin Config UI** – API Keys über Admin-Panel konfigurierbar
-- [x] **Eingebaute Plugins**: Sonarr, Radarr, Proxmox
-- [ ] **Community Plugins Repo** anlegen
-- [ ] **Dokumentation** für Plugin-Entwickler
+### Plugin Ökosystem
+- [x] Plugin-Interface (`BasePlugin` ABC + `config_schema` + `get_newsletter_block`)
+- [x] Plugin-Registry mit Auto-Discovery
+- [x] Admin-Panel (`/admin`) zum Verwalten
+- [x] 13 eingebaute Plugins (Sonarr, Radarr, Proxmox, Jellyseerr, Immich, Navidrome, Nextcloud, n8n, Gitea, Portainer, Paperless, Audiobookshelf, Uptime Kuma)
+- [ ] Community Plugins Repo + Dokumentation
 
 ### Multi-User
-- [ ] **User Management** Screen (Admin)
-- [ ] **Per-User Watchtime** – eigene Stats pro User
-- [ ] **Per-User Notifications** – jeder entscheidet selbst
-- [ ] **Family Profiles** – unterschiedliche Dashboards
+- [ ] User-Management Screen (Admin)
+- [ ] Per-User Watchtime & Notifications
+- [ ] Familien-Profile mit eigenen Dashboards
 
 ---
 
 ## ✅ ERLEDIGT
 
-- [x] Flutter Projektstruktur
-- [x] Liquid Glass Design System (`glass_card.dart`)
-- [x] 4 Screens: Home, Services, Newsletter, Settings
-- [x] Widget Grid mit iOS Edit Mode
-- [x] FastAPI Backend Grundstruktur
-- [x] JWT Auth Backend-seitig
-- [x] Web Push / VAPID Backend
-- [x] Newsletter Builder Pipeline (Jellyfin → TMDB → Ollama → HTML)
-- [x] Uptime Kuma Webhook Endpoint
-- [x] GitHub Actions CI/CD (iOS + Android)
-- [x] VS Code Config (launch, settings, extensions)
-- [x] CLAUDE.md für Claude Code Context
-- [x] Repo auf GitHub gepusht (github.com/Brottuetchen/hubstinger)
+**Code / Architektur**
+- Flutter Projektstruktur + Liquid Glass Design System
+- 4 Screens: Home, Services, Newsletter, Settings
+- Widget Grid mit iOS Edit Mode + Layout-Persistenz
+- FastAPI Backend mit SQLite/SQLAlchemy
+- JWT Auth (Backend + Flutter)
+- JWT Token Auto-Refresh (`POST /api/auth/refresh` + Flutter Refresh bei Resume/Start)
+- Web Push / VAPID Backend
+- Newsletter Builder Pipeline (Jellyfin → TMDB → Ollama → HTML)
+- Uptime Kuma Webhook Endpoint
+- Jellyfin Image-Proxy (`/api/jellyfin/image/{id}`)
+- Plugin System (BasePlugin, Registry, Admin-UI, 13 Plugins)
+- Plugin Stats in `/api/stats` aggregiert (parallel via asyncio.gather)
+- Authentik OIDC Endpoints + Flutter Deep-Link-Handler
+- iPad Sidebar Navigation (tabIndexProvider, vollständig verdrahtet)
+- Live Stat Widgets (containers, proxmox, requests, uptime, nas → echte /api/stats Werte)
+- Plugin Widgets: Sonarr, Radarr, Immich, Navidrome im Widget-Editor
 
----
+**Hardening**
+- `SECRET_KEY` Pflicht beim Start (harter Abbruch bei Default-Wert)
+- Rate Limiting auf Login (10 req/min/IP via slowapi)
+- Security Headers (X-Frame-Options, X-Content-Type-Options, …)
+- CORS konfigurierbar per `CORS_ORIGINS` Env-Var
+- Globaler Exception-Handler (kein Stack Trace in API-Responses)
+- Swagger `/docs` standardmäßig deaktiviert
 
-## Authentik OAuth2 Setup – Schritt für Schritt
-
-### 1. Authentik – Application anlegen
-```
-Authentik Admin → Applications → Create
-Name:          Family Hub
-Slug:          family-hub
-Provider:      (neu erstellen, siehe unten)
-```
-
-### 2. Authentik – OAuth2/OIDC Provider
-```
-Providers → Create → OAuth2/OpenID Provider
-Name:                  Family Hub
-Authorization flow:    default-authorization-flow
-Client type:           Public (kein Secret für mobile Apps)
-Client ID:             family-hub  (merken!)
-Redirect URIs:         hubstinger://auth/callback
-Signing Key:           authentik Self-signed Certificate
-Scopes:                openid, email, profile
-```
-
-### 3. Flutter – Dependencies
-```yaml
-# pubspec.yaml
-flutter_appauth: ^7.0.0
-flutter_secure_storage: ^9.0.0
-```
-
-### 4. Flutter – OAuth Flow
-```dart
-// lib/services/auth_service.dart
-final appAuth = FlutterAppAuth();
-
-Future<void> loginWithAuthentik() async {
-  final result = await appAuth.authorizeAndExchangeCode(
-    AuthorizationTokenRequest(
-      'family-hub',                          // Client ID
-      'hubstinger://auth/callback',          // Redirect URI
-      issuer: 'https://auth.t-acc.com/application/o/family-hub/',
-      scopes: ['openid', 'email', 'profile'],
-    ),
-  );
-  // Speichern
-  await storage.write(key: 'access_token', value: result.accessToken);
-  await storage.write(key: 'id_token', value: result.idToken);
-}
-```
-
-### 5. Backend – Token verifizieren
-```python
-# backend/main.py – OIDC verification
-import httpx
-from jose import jwt
-
-AUTHENTIK_ISSUER = os.getenv("AUTHENTIK_ISSUER", "https://auth.t-acc.com/application/o/family-hub/")
-
-async def verify_oidc_token(token: str) -> dict:
-    # Fetch JWKS from Authentik
-    async with httpx.AsyncClient() as client:
-        r = await client.get(f"{AUTHENTIK_ISSUER}.well-known/openid-configuration")
-        oidc_config = r.json()
-        jwks_r = await client.get(oidc_config["jwks_uri"])
-        jwks = jwks_r.json()
-    # Verify token
-    return jwt.decode(token, jwks, algorithms=["RS256"],
-                      audience="family-hub", issuer=AUTHENTIK_ISSUER)
-```
-
-### 6. `.env` ergänzen
-```bash
-AUTHENTIK_ISSUER=https://auth.t-acc.com/application/o/family-hub/
-AUTHENTIK_CLIENT_ID=family-hub
-```
+**Infrastruktur / Setup**
+- `.env.example` vollständig mit Kommentaren
+- `create_admin.py` interaktiv
+- README mit vollständiger Setup-Anleitung + Authentik OIDC Guide
+- Repo bereinigt (keine hardcodierten IPs/Domains)
+- Fresh-Clone buildbar (`flutter create .` + `flutter pub get`)

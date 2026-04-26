@@ -256,21 +256,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ('✉', 'Newsletter'),
       ('⚙', 'Einstellungen'),
     ];
-    return items.map((item) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: GlassCard(
-        borderRadius: 14,
-        weight: GlassWeight.thin,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Text(item.$1, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 12),
-            Text(item.$2, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          ],
+    final currentTab = ref.watch(tabIndexProvider);
+    return items.asMap().entries.map((entry) {
+      final i = entry.key;
+      final item = entry.value;
+      final active = currentTab == i;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: GlassCard(
+          borderRadius: 14,
+          weight: active ? GlassWeight.mid : GlassWeight.thin,
+          rimColor: active ? AppColors.violet.withOpacity(0.4) : null,
+          tint: active ? AppColors.violet.withOpacity(0.12) : null,
+          onTap: () => ref.read(tabIndexProvider.notifier).state = i,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Text(item.$1, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 12),
+              Text(item.$2, style: TextStyle(
+                fontSize: 14,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active ? Colors.white : Colors.white70,
+              )),
+            ],
+          ),
         ),
-      ),
-    )).toList();
+      );
+    }).toList();
   }
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -458,16 +471,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       'newsletter'    => const NewsletterWidget(),
       'recently'      => const RecentlyWidget(),
       'watchtime'     => const WatchtimeWidget(),
-      'containers'    => const StatWidget(emoji: '🐳', value: '–', label: 'Container', sub: 'Proxmox', color: AppColors.violet),
-      'streams_count' => LiveStatWidget(emoji: '▶️', label: 'Streams', statsKey: 'active_streams',
+      'containers'    => LiveStatWidget(emoji: '🐳', label: 'Container',
+                           statsKey: 'portainer_running',
+                           sub: 'Laufend', color: AppColors.violet,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'streams_count' => LiveStatWidget(emoji: '▶️', label: 'Streams',
+                           statsKey: 'active_streams',
                            sub: 'Aktiv', color: AppColors.cyan,
                            formatter: (v) => v?.toString() ?? '–'),
-      'uptime'        => LiveStatWidget(emoji: '✅', label: 'Uptime', statsKey: 'uptime_pct',
+      'uptime'        => LiveStatWidget(emoji: '✅', label: 'Uptime',
+                           statsKey: 'uptime_kuma_pct',
                            sub: 'Services', color: AppColors.green,
-                           formatter: (v) => v != null ? '${v.toStringAsFixed(1)}%' : '–'),
-      'nas'           => const StatWidget(emoji: '💾', value: '–', label: 'NAS frei', sub: 'konfigurieren', color: AppColors.amber),
-      'proxmox'       => const StatWidget(emoji: '🖥️', value: '–', label: 'CPU', sub: 'Proxmox', color: AppColors.orange),
-      'requests'      => const StatWidget(emoji: '🎥', value: '–', label: 'Requests', sub: 'Jellyseerr', color: AppColors.rose),
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(1)}%' : '–'),
+      'nas'           => LiveStatWidget(emoji: '💾', label: 'NAS frei',
+                           statsKey: 'nextcloud_used_gb',
+                           sub: 'Nextcloud', color: AppColors.amber,
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(1)} GB' : '–'),
+      'proxmox'       => LiveStatWidget(emoji: '🖥️', label: 'CPU',
+                           statsKey: 'proxmox_cpu_pct',
+                           sub: 'Proxmox', color: AppColors.orange,
+                           formatter: (v) => v != null ? '${(v as num).toStringAsFixed(0)}%' : '–'),
+      'requests'      => LiveStatWidget(emoji: '🎥', label: 'Anfragen',
+                           statsKey: 'jellyseerr_pending',
+                           sub: 'Jellyseerr', color: AppColors.rose,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'sonarr'        => LiveStatWidget(emoji: '📺', label: 'Upcoming',
+                           statsKey: 'sonarr_upcoming',
+                           sub: 'Sonarr', color: AppColors.cyan,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'radarr'        => LiveStatWidget(emoji: '🎬', label: 'Fehlend',
+                           statsKey: 'radarr_missing',
+                           sub: 'Radarr', color: AppColors.amber,
+                           formatter: (v) => v?.toString() ?? '–'),
+      'immich'        => LiveStatWidget(emoji: '📷', label: 'Fotos',
+                           statsKey: 'immich_photos',
+                           sub: 'Immich', color: AppColors.green,
+                           formatter: (v) => v != null ? _formatCount(v as int) : '–'),
+      'navidrome'     => LiveStatWidget(emoji: '🎵', label: 'Künstler',
+                           statsKey: 'navidrome_artists',
+                           sub: 'Navidrome', color: AppColors.violet,
+                           formatter: (v) => v?.toString() ?? '–'),
       _ => const SizedBox(),
     };
 
@@ -524,6 +567,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+
+  String _formatCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 
   Widget _buildAddButton() {

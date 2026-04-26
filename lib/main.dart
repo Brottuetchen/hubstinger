@@ -48,13 +48,28 @@ class _AuthGate extends ConsumerStatefulWidget {
   ConsumerState<_AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends ConsumerState<_AuthGate> {
+class _AuthGateState extends ConsumerState<_AuthGate>
+    with WidgetsBindingObserver {
   late final AppLinks _appLinks;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _listenDeepLinks();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(authProvider.notifier).refreshIfNeeded();
+    }
   }
 
   void _listenDeepLinks() {
@@ -95,15 +110,8 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
   }
 }
 
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({super.key});
-
-  @override
-  State<MainShell> createState() => _MainShellState();
-}
-
-class _MainShellState extends State<MainShell> {
-  int _tab = 0;
 
   static const _screens = [
     HomeScreen(),
@@ -120,7 +128,8 @@ class _MainShellState extends State<MainShell> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(tabIndexProvider);
     return Scaffold(
       backgroundColor: AppColors.bg,
       extendBody: true,
@@ -129,14 +138,14 @@ class _MainShellState extends State<MainShell> {
           const _BackgroundOrbs(),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: _screens[_tab],
+            child: _screens[tab],
           ),
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: _BottomBar(
-              currentIndex: _tab,
+              currentIndex: tab,
               tabs: _tabs,
-              onTap: (i) => setState(() => _tab = i),
+              onTap: (i) => ref.read(tabIndexProvider.notifier).state = i,
             ),
           ),
         ],

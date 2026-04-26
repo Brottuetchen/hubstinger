@@ -16,8 +16,9 @@ Self-hosted media & homelab dashboard for iOS, iPad, and Android.
 - 🔌 **Plugin System** – 13 built-in plugins (Sonarr, Radarr, Immich, Proxmox, …)
 - ⚙️ **Admin Panel** – web UI at `/admin` to configure & test plugins
 - 🔔 **Push Notifications** – Web Push via VAPID (FCM-ready)
-- 📱 **iPad** – sidebar layout on wide screens
-- 🔐 **Auth** – JWT login, secure token storage
+- 📱 **iPad** – sidebar layout with fully wired tab navigation
+- 🔐 **Auth** – JWT login, secure storage, silent auto-refresh
+- 🔄 **Token Auto-Refresh** – JWT renewed silently on app resume (< 2 days to expiry)
 
 ---
 

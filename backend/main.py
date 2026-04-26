@@ -290,6 +290,11 @@ async def get_me(user: UserModel = Depends(get_current_user)):
     return {"username": user.username, "email": user.email,
             "full_name": user.full_name, "is_admin": user.is_admin}
 
+@app.post("/api/auth/refresh", response_model=Token)
+async def refresh_token(user: UserModel = Depends(get_current_user)):
+    """Issue a fresh JWT for the currently authenticated user."""
+    return {"access_token": create_token({"sub": user.username}), "token_type": "bearer"}
+
 # ─── OIDC / Authentik ─────────────────────────────────────────────────────────
 @app.get("/api/auth/oidc-url")
 async def oidc_login_url():

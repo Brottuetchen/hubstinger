@@ -75,6 +75,13 @@ class ApiService {
   Future<Map<String, dynamic>> getMe() async =>
       (await _get('/api/auth/me')) as Map<String, dynamic>;
 
+  Future<String> refreshToken() async {
+    final data = (await _post('/api/auth/refresh', {})) as Map<String, dynamic>;
+    final token = data['access_token'] as String;
+    await AuthService.instance.saveToken(token);
+    return token;
+  }
+
   // ── Jellyfin ───────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getSessions() async =>
