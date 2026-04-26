@@ -6,9 +6,9 @@
 
 ## 🔴 KRITISCH – vor dem ersten Start erledigen
 
-- [ ] **`SECRET_KEY` setzen** – `openssl rand -hex 32` → in `.env` eintragen
-- [ ] **Admin-User anlegen** – `python create_admin.py`
-- [ ] **Jellyfin Token** holen – Jellyfin → Dashboard → API Keys → `+`
+- [ ] **`SECRET_KEY` setzen** – automatisch via `bash install.sh` oder manuell: `openssl rand -hex 32` → `.env`
+- [ ] **Admin-User anlegen** – `bash install.sh` macht das interaktiv, oder: `python create_admin.py`
+- [ ] **Jellyfin Token** holen – Jellyfin → Dashboard → API Keys → `+` (install.sh fragt danach)
 - [ ] **CF Tunnel / NPM** konfigurieren – HTTPS Pflicht für Push & OIDC
 - [ ] **`flutter create --org com.yourname --project-name family_hub .`** – einmalig nach Clone
 
@@ -121,6 +121,7 @@
 **Infrastruktur / Setup**
 - `.env.example` vollständig mit Kommentaren
 - `create_admin.py` interaktiv
+- `install.sh` – vollständiger Installer (venv, SECRET_KEY, .env, Jellyfin, VAPID-Keys, Admin, systemd)
 - README mit vollständiger Setup-Anleitung + Authentik OIDC Guide
 - Repo bereinigt (keine hardcodierten IPs/Domains)
 - Fresh-Clone buildbar (`flutter create .` + `flutter pub get`)
