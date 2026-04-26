@@ -80,9 +80,12 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
   Future<void> _handleLink(Uri? uri) async {
     if (uri == null) return;
-    // hubstinger://auth?token=<jwt>
+    // hubstinger://auth?token=<jwt> or hubstinger://auth#token=<jwt>
     if (uri.scheme == 'hubstinger' && uri.host == 'auth') {
-      final token = uri.queryParameters['token'];
+      String? token = uri.queryParameters['token'];
+      if ((token == null || token.isEmpty) && uri.fragment.isNotEmpty) {
+        token = Uri.splitQueryString(uri.fragment)['token'];
+      }
       if (token != null && token.isNotEmpty) {
         await AuthService.instance.saveToken(token);
         if (mounted) ref.read(authProvider.notifier).reloadUser();
